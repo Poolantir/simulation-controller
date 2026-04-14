@@ -1,0 +1,130 @@
+openapi: 3.0.3
+info:
+  title: Poolantir Simulation Controller API
+  version: 1.0.0
+paths:
+  /api/v1/state:
+    get:
+      summary: Get state snapshot
+      responses:
+        "200":
+          description: Runtime state
+  /api/v1/config:
+    get:
+      summary: Get config
+      responses:
+        "200":
+          description: Config object
+    put:
+      summary: Update config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stalls:
+                  type: integer
+                urinals:
+                  type: integer
+                pee_duration_sec:
+                  type: integer
+                poo_duration_sec:
+                  type: integer
+      responses:
+        "200":
+          description: Updated config
+  /api/v1/demand/delta:
+    post:
+      summary: Apply queue delta
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pee_delta:
+                  type: integer
+                poo_delta:
+                  type: integer
+      responses:
+        "200":
+          description: Updated queue
+  /api/v1/incidents:
+    get:
+      summary: List incidents
+      responses:
+        "200":
+          description: List incidents
+    post:
+      summary: Open an incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created incident
+  /api/v1/incidents/{incident_id}:
+    patch:
+      summary: Resolve incident
+      parameters:
+        - in: path
+          name: incident_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated incident
+  /api/v1/nodes/register:
+    post:
+      summary: Register node
+      responses:
+        "201":
+          description: Registered node
+  /api/v1/nodes/{node_id}/heartbeat:
+    post:
+      summary: Node heartbeat
+      parameters:
+        - in: path
+          name: node_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated node
+  /api/v1/nodes/{node_id}/ack-start:
+    post:
+      summary: Ack assignment start
+      responses:
+        "200":
+          description: Acked
+  /api/v1/nodes/{node_id}/ack-done:
+    post:
+      summary: Ack assignment done
+      responses:
+        "200":
+          description: Acked
+  /api/v1/nodes/{node_id}/ack-fail:
+    post:
+      summary: Ack assignment failed
+      responses:
+        "200":
+          description: Acked
+  /api/v1/stream:
+    get:
+      summary: SSE stream endpoint
+      responses:
+        "200":
+          description: text/event-stream payload
