@@ -8,7 +8,7 @@ Flask-based scheduler service for simulation demand, node assignment orchestrati
 - Deterministic scheduling with fixed pee/poo durations and next-availability tracking.
 - SSE stream for real-time UI synchronization.
 - Node transport abstraction with mock transport default.
-- Firestore persistence adapter (optional via `FIREBASE_CREDENTIAL_PATH`).
+- InfluxDB persistence adapter (optional via env vars).
 - Watchdog for heartbeat and assignment timeout fault handling.
 
 ## Quickstart
@@ -40,7 +40,10 @@ Copy `.env.example` to `.env`:
 - `HOST` (default `0.0.0.0`)
 - `PORT` (default `5000`)
 - `WATCHDOG_INTERVAL_SEC` (default `5`)
-- `FIREBASE_CREDENTIAL_PATH` (optional path to Firebase JSON credential)
+- `INFLUXDB_URL` (Influx Cloud or OSS URL)
+- `INFLUXDB_TOKEN` (write token)
+- `INFLUXDB_ORG` (organization name)
+- `INFLUXDB_BUCKET` (target bucket)
 - `STATE_SNAPSHOT_PATH` (runtime recovery snapshot JSON path)
 - `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_SEC` (basic per-client throttle)
 - `MAX_CONTENT_LENGTH_BYTES` (request body safety limit)

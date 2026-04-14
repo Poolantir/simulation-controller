@@ -1,4 +1,4 @@
 Flask>=3.0.0
 pytest>=8.0.0
-firebase-admin>=6.0.0,<7
+influxdb-client>=1.43.0
 python-dotenv>=1.0.0

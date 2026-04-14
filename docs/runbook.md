@@ -32,9 +32,10 @@ python scripts/seed_demo.py
 - Watchdog marks nodes offline after timeout.
 - Resolve incident and heartbeat node to return it to service.
 
-### Firestore data not appearing
-- Verify `FIREBASE_CREDENTIAL_PATH` points to valid JSON.
-- If unset, backend runs with no-op persistence.
+### InfluxDB data not appearing
+- Verify `INFLUXDB_URL`, `INFLUXDB_TOKEN`, `INFLUXDB_ORG`, and `INFLUXDB_BUCKET`.
+- Ensure the token has write access to the bucket.
+- If these vars are unset, backend runs with no-op persistence.
 
 ### Stream not updating frontend
 - Ensure frontend is connected to `/api/v1/stream`.
