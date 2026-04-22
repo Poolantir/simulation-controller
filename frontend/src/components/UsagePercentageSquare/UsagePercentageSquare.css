@@ -1,0 +1,19 @@
+.usage-square {
+  width: 80px;
+  height: 72px;
+  background-color: #E5E5E5;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.usage-square-text {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+}
+
+.usage-square-alert {
+  background-color: #f5a0a0;
+}

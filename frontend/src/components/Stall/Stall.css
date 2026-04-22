@@ -1,0 +1,85 @@
+.stall {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  position: relative;
+}
+
+.stall-left {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 60px;
+}
+
+.stall-base {
+  width: 54px;
+  height: 60px;
+  background: #fff;
+  border: 5px solid #000;
+  border-radius: 22px 0 0 22px;
+  box-sizing: border-box;
+  position: absolute;
+  inset: 0;
+}
+
+.stall-bowl {
+  width: 46px;
+  height: 46px;
+  background: #fff;
+  border-radius: 18px;
+  position: absolute;
+  top: 50%;
+  left: 45%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.stall-node-id {
+  position: absolute;
+  top: 50%;
+  left: 45%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  font-weight: 700;
+  color: #000;
+  z-index: 2;
+}
+
+.stall-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  height: 88px;
+  align-self: center;
+}
+
+.stall-handle {
+  width: 18px;
+  height: 5px;
+  background: #DFDFDF;
+  margin-left: -2px;
+  z-index: 1;
+}
+
+.stall-top {
+  width: 27px;
+  height: 88px;
+  background: #fff;
+  border: 5px solid #000;
+  border-radius: 8px;
+  box-sizing: border-box;
+  margin-left: -5px;
+}
+
+/* Mini variant for sidebar icon */
+.stall-mini {
+  transform: scale(0.5);
+  transform-origin: top left;
+}
+.stall-mini .stall-right {
+  height: auto;
+}

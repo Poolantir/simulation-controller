@@ -1,0 +1,47 @@
+.urinal {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+}
+
+.urinal-bowl {
+  width: 19px;
+  height: 70px;
+  background: #fff;
+  border: 5px solid #000;
+  border-radius: 18px 0 0 18px;
+  box-sizing: border-box;
+  z-index: 1;
+}
+
+.urinal-base-wrapper {
+  position: relative;
+  margin-left: -5px;
+}
+
+.urinal-base {
+  width: 31px;
+  height: 82px;
+  background: #fff;
+  border: 5px solid #000;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.urinal-node-id {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  font-weight: 700;
+  color: #000;
+  z-index: 2;
+}
+
+/* Mini variant for sidebar icon */
+.urinal-mini {
+  transform: scale(0.5);
+  transform-origin: top left;
+}

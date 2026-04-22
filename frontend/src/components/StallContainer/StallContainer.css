@@ -1,0 +1,69 @@
+.stall-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.stall-container-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.stall-container-body {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  gap: 10px;
+  padding-right: 10px;
+  box-sizing: border-box;
+}
+
+.stall-container-line {
+  width: 100%;
+  max-width: 320px;
+  height: 2px;
+  background-color: #999;
+  flex-shrink: 0;
+}
+
+.stall-container-fill {
+  width: 55px;
+  height: 55px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.stall-fill-pee {
+  background-color: #FFE96D;
+}
+
+.stall-fill-poo {
+  background-color: #C0A300;
+}
+
+.stall-fill-empty {
+  background-color: transparent;
+}
+
+.stall-out-of-order {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 24px;
+}

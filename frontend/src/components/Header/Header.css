@@ -1,0 +1,16 @@
+.header {
+  height: 48px;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  position: relative;
+  z-index: 2;
+}
+
+.header-logo {
+  height: 34px;
+}

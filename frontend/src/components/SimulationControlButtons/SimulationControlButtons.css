@@ -1,0 +1,50 @@
+.control-buttons-row {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.control-btn {
+  min-width: 60px !important;
+  height: 40px !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  padding: 4px 16px !important;
+}
+
+.control-btn-start {
+  background-color: #d4edda !important;
+  border: 2px solid #5da85a !important;
+  color: #5da85a !important;
+}
+.control-btn-start:hover {
+  background-color: #c3e6cb !important;
+}
+
+.control-btn-pause {
+  background-color: #e2e3e5 !important;
+  border: 2px solid #888 !important;
+  color: #666 !important;
+}
+.control-btn-pause:hover {
+  background-color: #d6d8db !important;
+}
+
+.control-btn-stop {
+  background-color: #f8d7da !important;
+  border: 2px solid #c55 !important;
+  color: #8b2020 !important;
+}
+.control-btn-stop:hover {
+  background-color: #f1c1c5 !important;
+}
+
+.control-btn-replay {
+  background-color: #d1ecf1 !important;
+  border: 2px solid #5599cc !important;
+  color: #3388bb !important;
+}
+.control-btn-replay:hover {
+  background-color: #bee5eb !important;
+}

@@ -1,0 +1,50 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 40vw;
+  min-width: 320px;
+  max-width: 560px;
+  padding: 12px;
+  height: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.condition-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.condition-icon-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+}
+
+.condition-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.condition-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.condition-label {
+  min-width: 20px;
+  font-weight: 600 !important;
+  text-align: right;
+}
+
+.log-line {
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+}
