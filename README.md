@@ -18,15 +18,10 @@ This application allows a user to configure the state of the restroom by setting
 
 ## Poolantir Architecture
 <p align="center">
-  <img src="./img/poolantir-architecture.png" alt="Poolantir Achitecture" width="75%" />
+  <img src="./img/poolantir-architecture.png" alt="Poolantir Architecture" width="45%" style="display:inline-block; vertical-align:top; margin-right:2%;" />
+  <img src="./img/poolantir-simulation-architecture.png" alt="Simulation Flow" width="45%" style="display:inline-block; vertical-align:top;" />
   <br />
-  <em>Poolantir Achitecture</em>
-</p>
-
-<p align="center">
-  <img src="./img/poolantir-simulation-architecture.png" alt="Simulation Flow" width="75%" />
-  <br />
-  <em>Simulation Flow</em>
+  <em>Poolantir Architecture (left) &nbsp;&nbsp; | &nbsp;&nbsp; Simulation Flow (right)</em>
 </p>
 
 ### React Frontend
@@ -43,15 +38,10 @@ Using a simple flask server for the priority queue toilet scheduler and connecti
 
 #### Scheduling Algorithm
 <p align="center">
-  <img src="./img/poolantir-scheduler.jpg" alt="Poolantir Achitecture" width="75%" />
+  <img src="./img/poolantir-scheduler.jpg" alt="Poolantir Architecture" width="45%" style="display:inline-block; vertical-align:top; margin-right:2%;" />
+  <img src="./img/poolantir-high-level-flow.jpg" alt="Poolantir Architecture" width="45%" style="display:inline-block; vertical-align:top;" />
   <br />
-  <em>Poolantir Achitecture</em>
-</p>
-
-<p align="center">
-  <img src="./img/poolantir-high-level-flow.jpg" alt="Poolantir Achitecture" width="75%" />
-  <br />
-  <em>Poolantir Achitecture</em>
+  <em>Poolantir Scheduler (left) &nbsp;&nbsp; | &nbsp;&nbsp; High-Level Flow (right)</em>
 </p>
 
 *Idea:*
