@@ -6,7 +6,16 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  height: 100%;
+  /*
+   * No explicit `height: 100%` — flexbox `align-items: stretch`
+   * on the parent row already sizes this container to fill the
+   * cross-axis, correctly accounting for the margin below. With
+   * `height: 100%` set, the margin was being added ON TOP of
+   * 100%, pushing the bottom border past the viewport edge and
+   * clipping it. Stretch-only sizing matches the sidebar column
+   * (which uses padding instead of margin) so the two panes share
+   * the same vertical footprint.
+   */
   margin: var(--space-5);
   padding: var(--space-6);
   gap: var(--space-8);
@@ -31,22 +40,23 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: space-between;
   flex: 1;
   min-height: 0;
   gap: 0;
   overflow: hidden;
   /*
-   * The individual stall/urinal components use spec-exact sizing
-   * (container 525x155 → now 32.8125rem x 9.6875rem). We scale
-   * the whole column uniformly via CSS `zoom` so every shape keeps
-   * its exact proportions but the group always fits the available
-   * height.
+   * Individual stall/urinal containers use spec-exact sizing
+   * (container 32.8125rem x 9.6875rem). The column distributes
+   * them vertically with `space-between` so the first toilet sits
+   * at the top edge and the last toilet flushes to the bottom,
+   * filling the entire digital-twin height. A uniform `zoom`
+   * scale-down kicks in for shorter viewports so six toilets
+   * still fit without overflow.
    */
   zoom: 0.7;
 }
 
-/* Scale responsively based on viewport height so 6 toilets always
- * fit without overflow. 6 rows * 9.6875rem natural height. */
 @media (min-height: 900px) {
   .toilet-column { zoom: 0.85; }
 }

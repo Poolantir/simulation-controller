@@ -71,7 +71,7 @@ export default function Sidebar({
   return (
     <Box className="sidebar">
       {/* Simulation Configuration */}
-      <SidebarSquare title="Simulation Configuration" flex={3}>
+      <SidebarSquare title="Simulation Configuration" hugContent contentOverflow="hidden">
         <SimulationConfiguration
           config={simulationConfig}
           onChange={onSimulationConfigChange}
@@ -151,6 +151,7 @@ export default function Sidebar({
         title="Simulation Logs"
         flex={2}
         className="sidebar-square--logs"
+        contentOverflow="hidden"
       >
         <Box className="sim-logs">
           <Box className="sim-logs-scroll">

@@ -1,10 +1,25 @@
 @import "../../styles.css";
 
+.elapsed-time-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: flex-end;
+  flex-shrink: 0;
+  padding: var(--space-1) 0 var(--space-3);
+  gap: var(--space-1);
+}
+
 .elapsed-time {
   font-size: var(--font-size-md) !important;
   color: var(--color-text);
-  padding: var(--space-1) 0 var(--space-3);
   text-align: right;
-  align-self: flex-end;
+  flex-shrink: 0;
+}
+
+.satisfied-users {
+  font-size: var(--font-size-md) !important;
+  color: var(--color-text);
+  text-align: right;
   flex-shrink: 0;
 }

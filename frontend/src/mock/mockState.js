@@ -6,6 +6,7 @@ export const defaultSimulationConfig = {
 
 export const mockState = {
   elapsedTimeText: "Simulation Time Elapsed: 1hr 20min",
+  satisfiedUsers: 42,
 
   queue: [
     { id: 1, type: "poo" },

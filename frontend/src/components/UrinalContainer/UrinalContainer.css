@@ -14,9 +14,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   width: 23.75rem;     /* 380px */
   height: 100%;
+  /*
+   * Horizontal inset so short divider lines start at the same x as
+   * the person icon (left edge of the flex-end body cluster), not
+   * flush with the stall column’s far left. Matches bowl+base
+   * outer width in Urinal.css (1.625 − 0.4375 + 2.6875).
+   */
+  --urinal-fixture-outer-width: 4.875rem;
+  --urinal-line-offset: calc(
+    100% - var(--space-5) - 5rem - var(--space-5) - var(--urinal-fixture-outer-width)
+  );
 }
 
 .urinal-container-body {
@@ -31,10 +41,13 @@
 }
 
 .urinal-container-line {
-  width: 12.5rem;      /* 200px */
+  /* Prefer 200px cap; shrink if needed so line stays inside column */
+  width: min(12.5rem, calc(100% - var(--urinal-line-offset)));
   height: 0.1875rem;   /* 3px */
   background-color: var(--color-divider);
   flex-shrink: 0;
+  margin-left: var(--urinal-line-offset);
+  align-self: flex-start;
 }
 
 /* Sizing for the shared UsageIcon when used as a urinal fill */

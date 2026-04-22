@@ -1,10 +1,17 @@
-import { Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import "./SimulationElapsedTime.css";
 
-export default function SimulationElapsedTime({ text }) {
+export default function SimulationElapsedTime({ text, satisfiedUsers }) {
   return (
-    <Typography className="elapsed-time" variant="h6">
-      {text}
-    </Typography>
+    <Box className="elapsed-time-block">
+      <Typography className="elapsed-time" variant="h6">
+        {text}
+      </Typography>
+      {satisfiedUsers !== undefined && satisfiedUsers !== null && (
+        <Typography className="satisfied-users" variant="h6">
+          Satisfied Users: {satisfiedUsers}
+        </Typography>
+      )}
+    </Box>
   );
 }

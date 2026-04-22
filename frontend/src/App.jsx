@@ -67,6 +67,7 @@ export default function App() {
           />
           <SimulationDigitalTwin
             elapsedTimeText={mockState.elapsedTimeText}
+            satisfiedUsers={mockState.satisfiedUsers}
             queue={queue}
             stalls={mockState.stalls}
             urinals={mockState.urinals}

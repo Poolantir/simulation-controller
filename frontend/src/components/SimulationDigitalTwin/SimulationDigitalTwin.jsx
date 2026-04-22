@@ -7,6 +7,7 @@ import "./SimulationDigitalTwin.css";
 
 export default function SimulationDigitalTwin({
   elapsedTimeText,
+  satisfiedUsers,
   queue,
   stalls,
   urinals,
@@ -24,10 +25,13 @@ export default function SimulationDigitalTwin({
       />
 
       <Box className="digital-twin-right">
-        <SimulationElapsedTime text={elapsedTimeText} />
+        <SimulationElapsedTime
+          text={elapsedTimeText}
+          satisfiedUsers={satisfiedUsers}
+        />
 
         <Box className="toilet-column">
-          {stalls.map((s) => (
+          {stalls.map((s, idx) => (
             <StallContainer
               key={`stall-${s.id}`}
               id={s.id}
@@ -35,16 +39,18 @@ export default function SimulationDigitalTwin({
               outOfOrder={s.outOfOrder || false}
               fillColor={s.outOfOrder ? "empty" : "pee"}
               alert={s.usagePct <= 10 && !s.outOfOrder}
+              border={idx === 0 ? "top-and-bottom" : "bottom"}
             />
           ))}
 
-          {urinals.map((u) => (
+          {urinals.map((u, idx) => (
             <UrinalContainer
               key={`urinal-${u.id}`}
               id={u.id}
               usagePct={u.usagePct}
               fillColor="pee"
               alert={u.usagePct <= 10}
+              border={idx === 0 ? "top-and-bottom" : "bottom"}
             />
           ))}
         </Box>

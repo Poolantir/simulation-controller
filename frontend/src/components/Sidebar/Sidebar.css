@@ -11,6 +11,8 @@
   height: 100%;
   box-sizing: border-box;
   flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .condition-panel {
@@ -114,7 +116,15 @@
   min-height: 0;
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  /*
+   * `stretch` is required so .sim-logs-scroll matches this row's
+   * full height; otherwise the scroll container sizes to its
+   * intrinsic content height, no clipping occurs, and `overflow:
+   * auto` never activates. Icons still sit at the top because
+   * .sim-logs-actions is a column that lays its children out from
+   * the top (flex-start is its default justify-content).
+   */
+  align-items: stretch;
   gap: var(--space-2);
 }
 

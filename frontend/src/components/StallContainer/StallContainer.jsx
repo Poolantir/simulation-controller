@@ -10,13 +10,25 @@ export default function StallContainer({
   outOfOrder = false,
   fillColor = "pee",
   alert = false,
+  border = "bottom",
 }) {
+  const showTop = border === "top" || border === "top-and-bottom";
+  const showBottom = border === "bottom" || border === "top-and-bottom";
+
   if (outOfOrder) {
     return (
-      <Box className="stall-out-of-order">
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          Out-of-Order
-        </Typography>
+      <Box className="stall-container">
+        <Box className="stall-container-left">
+          {showTop && <Box className="stall-container-line" />}
+          <Box className="stall-container-body stall-container-body--out-of-order">
+            <UsageIcon variant="empty" className="stall-container-fill" />
+            <Typography className="stall-out-of-order-label" component="span" variant="body1">
+              Out-of-Order
+            </Typography>
+            <Stall id={id} size="large" />
+          </Box>
+          {showBottom && <Box className="stall-container-line" />}
+        </Box>
         <UsagePercentageSquare percentage={usagePct} />
       </Box>
     );
@@ -25,11 +37,12 @@ export default function StallContainer({
   return (
     <Box className="stall-container">
       <Box className="stall-container-left">
+        {showTop && <Box className="stall-container-line" />}
         <Box className="stall-container-body">
           <UsageIcon variant={fillColor} className="stall-container-fill" />
           <Stall id={id} size="large" />
         </Box>
-        <Box className="stall-container-line" />
+        {showBottom && <Box className="stall-container-line" />}
       </Box>
       <UsagePercentageSquare percentage={usagePct} alert={alert} />
     </Box>
