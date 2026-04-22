@@ -17,27 +17,42 @@ In addition to setting the state of the toilet, the user can "clean" the restroo
 This application allows a user to configure the state of the restroom by setting:
 
 ## Poolantir Architecture
-![Poolantir Achitecture](/img/poolantir-architecture.png)
-*Poolantir Achitecture*
+<p align="center">
+  <img src="./img/poolantir-architecture.png" alt="Poolantir Achitecture" width="75%" />
+  <br />
+  <em>Poolantir Achitecture</em>
+</p>
 
-![Simulation Flow](./img/poolantir-simulation-architecture.png)
-*Simulation Flow*
+<p align="center">
+  <img src="./img/poolantir-simulation-architecture.png" alt="Simulation Flow" width="75%" />
+  <br />
+  <em>Simulation Flow</em>
+</p>
 
 ### React Frontend
 Using React to create a single page front-end to control the 3D diorama.
 
-![Figma Sketch](./img/poolantir-frontend-figma-sketch.png)
-*Figma Sketch*
+<p align="center">
+  <img src="./img/poolantir-frontend-figma-sketch.png" alt="Figma Sketch" width="75%" />
+  <br />
+  <em>Figma Sketch</em>
+</p>
 
 ### Python Backend 
 Using a simple flask server for the priority queue toilet scheduler and connection to the Influx database
 
 #### Scheduling Algorithm
-![Poolantir Achitecture](./img/poolantir-scheduler.jpg)
-*Poolantir Achitecture*
+<p align="center">
+  <img src="./img/poolantir-scheduler.jpg" alt="Poolantir Achitecture" width="75%" />
+  <br />
+  <em>Poolantir Achitecture</em>
+</p>
 
-![Poolantir Achitecture](./img/poolantir-high-level-flow.jpg)
-*Poolantir Achitecture*
+<p align="center">
+  <img src="./img/poolantir-high-level-flow.jpg" alt="Poolantir Achitecture" width="75%" />
+  <br />
+  <em>Poolantir Achitecture</em>
+</p>
 
 *Idea:*
 Similar to how real restrooms work, users will enter the restroom, assess the toilet state (open/used/almost open/out of order) and choose the first open toilet which satisfies their use type (1: pee, 2: poo :) ).
