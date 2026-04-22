@@ -3,13 +3,13 @@ Interactive controller for the Poolantir 3D modeled diorama. This is intended to
 The state of each toilet is dynamically set (clean, fair, dirty, out of order), and scheduled users are placed into 1 of 6 toilets depending on the type of usage and state of the toilet. 
 
 *Cleanliness classifications (priority):*
-- 5. clean (100%)
-- 4. fair (75%)
-- 3. dirty (50%)
-- 2. horrendous (10%)
-- 1. out-of-order (0%)
-- 0. currently being cleaned (0%)
-- -1. non-existent (0%) (used for simulating bathrooms with fewer toilets)
+- P(5) clean (100%)
+- P(4) fair (75%)
+- P(3) dirty (50%)
+- P(2) horrendous (10%)
+- P(1) out-of-order (0%)
+- P(0) currently being cleaned (0%)
+- P(-1) non-existent (0%) (used for simulating bathrooms with fewer toilets)
 These values are configurable within the application interface
 
 In addition to setting the state of the toilet, the user can "clean" the restroom to repair it to the "clean" state. This all happens in real-time
