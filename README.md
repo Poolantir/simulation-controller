@@ -58,3 +58,4 @@ In real life, this is a FIFO queue (assumming human decency), where the next in 
 - stalls: 3^3 = 27 (not in use, pee, poo)
 _Total = urinals * stalls = 216_
 
+MORE DETAILED ASSUMPTIONS CAN BE FOUND WITHIN [scheduler.md](./specification/scheduler.md)
