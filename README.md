@@ -59,3 +59,36 @@ In real life, this is a FIFO queue (assumming human decency), where the next in 
 _Total = urinals * stalls = 216_
 
 MORE DETAILED ASSUMPTIONS CAN BE FOUND WITHIN [scheduler.md](./specification/scheduler.md)
+
+## Running the Project
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2+.
+
+### Quick start
+
+```bash
+# copy the example env file and fill in your secrets (email matt)
+cp .env.example .env
+```
+
+```bash
+# start Application
+docker compose up --build
+```
+
+```bash
+# stop application
+docker compose up -d --build
+```
+
+### Services
+
+Once running, the services are available at:
+
+| Service   | URL                        |
+|-----------|----------------------------|
+| React UI  | http://localhost:5173       |
+| Flask API | http://localhost:5000       |
+| InfluxDB  | http://localhost:8086       |
