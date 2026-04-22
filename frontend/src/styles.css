@@ -1,0 +1,170 @@
+/* =========================================================
+ * Poolantir Simulation — design tokens
+ * ---------------------------------------------------------
+ * Single source of truth for colors, radii, borders,
+ * spacing, and typography used across the frontend.
+ * All component CSS files @import this file, and main.jsx
+ * imports it as well so variables are always available.
+ *
+ * Layout strategy: desktop-first. Base rules target desktop
+ * monitors (~1280-1600px). `min-width` media queries layer
+ * extra adjustments for larger / ultra-wide screens. Smaller
+ * viewports scale down automatically via fluid root font-size
+ * (rem cascades), percentage widths, and flex min/max caps.
+ * =======================================================*/
+
+:root {
+  /* ---- Color palette: grays ---- */
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-gray-50:  #f1f1f1;
+  --color-gray-100: #e5e5e5;
+  --color-gray-200: #dfdfdf;
+  --color-gray-300: #e2e2e2;
+  --color-gray-500: #999999;
+  --color-gray-600: #888888;
+  --color-gray-700: #666666;
+
+  /* ---- Color palette: yellows ---- */
+  --color-yellow-lightest: #fff9e6;
+  --color-yellow-light:    #fff3c4;
+  --color-yellow-gold:     #c0a300;
+
+  /* ---- Color palette: browns ---- */
+  --color-brown-light:  #d9b779;
+  --color-brown-mid:    #d5ad61;
+  --color-brown-dark:   #a67c32;
+  --color-brown-darker: #8b6914;
+  --color-brown-text:   #4b382e;
+
+  /* ---- Semantic: surfaces / text / borders ---- */
+  --color-text: var(--color-brown-text);
+  --color-text-muted: var(--color-gray-700);
+  --color-bg: var(--color-white);
+  --color-surface: var(--color-white);
+  --color-surface-alt: var(--color-gray-50);
+  --color-border: var(--color-gray-300);
+  --color-border-strong: var(--color-brown-dark);
+  --color-border-dark: var(--color-black);
+  --color-divider: var(--color-gray-500);
+
+  /* ---- Semantic: state (control buttons, alerts) ---- */
+  --color-success:          #5da85a;
+  --color-success-bg:       #d4edda;
+  --color-success-bg-hover: #c3e6cb;
+
+  --color-neutral-bg:       #e2e3e5;
+  --color-neutral-bg-hover: #d6d8db;
+  --color-neutral-border:   var(--color-gray-600);
+  --color-neutral-text:     var(--color-gray-700);
+
+  --color-danger:          #cc5555;
+  --color-danger-bg:       #f8d7da;
+  --color-danger-bg-hover: #f1c1c5;
+  --color-danger-text:     #8b2020;
+
+  --color-info:          #5599cc;
+  --color-info-bg:       #d1ecf1;
+  --color-info-bg-hover: #bee5eb;
+  --color-info-text:     #3388bb;
+
+  --color-alert-bg: #f5a0a0;
+
+  /* ---- Radii (rem so they scale with root font-size) ---- */
+  /* MUI default theme.shape.borderRadius — outlined/text Buttons (+1 Cleanliness, etc.) */
+  --radius-button: 4px;
+  --radius-sm:  0.5rem;
+  --radius-md:  0.625rem;
+  --radius-lg:  0.75rem;
+  --radius-xl:  0.875rem;
+  --radius-2xl: 1rem;
+  --radius-pill: 999px;
+
+  /* ---- Border widths ----
+   * Hairlines stay in px (sub-pixel rendering). Heavier strokes
+   * go rem so they scale with the component art. */
+  --border-width-thin:  1px;
+  --border-width:       0.125rem;   /* 2px @ 16px root */
+  --border-width-heavy: 0.4375rem;  /* 7px @ 16px root */
+  --border-width-stall: 0.5rem;     /* 8px @ 16px root */
+
+  /* ---- Border shortcuts ---- */
+  --border-soft:    var(--border-width-thin) solid var(--color-border);
+  --border-default: var(--border-width)      solid var(--color-border);
+  --border-strong:  var(--border-width)      solid var(--color-border-strong);
+
+  /* ---- Spacing (rem) ---- */
+  --space-1: 0.25rem;   /* 4  */
+  --space-2: 0.375rem;  /* 6  */
+  --space-3: 0.5rem;    /* 8  */
+  --space-4: 0.625rem;  /* 10 */
+  --space-5: 0.75rem;   /* 12 */
+  --space-6: 0.875rem;  /* 14 */
+  --space-7: 1rem;      /* 16 */
+  --space-8: 1.25rem;   /* 20 */
+  --space-9: 1.5rem;    /* 24 */
+
+  /* ---- Typography (rem, fluid via root font-size) ---- */
+  --font-weight-regular: 400;
+  --font-weight-medium:  600;
+  --font-weight-bold:    700;
+
+  --font-size-xs:  0.75rem;
+  --font-size-sm:  0.875rem;
+  --font-size-md:  1rem;
+  --font-size-lg:  1.25rem;
+  --font-size-xl:  1.5rem;
+  --font-size-2xl: 1.75rem;
+
+  --line-height-tight: 1.2;
+  --line-height-base:  1.6;
+
+  /* ---- Icon sizes (rem) ---- */
+  --icon-size-sm: 1.125rem;
+  --icon-size-md: 1.625rem;
+  --icon-size-lg: 2.25rem;
+
+  /* ---- Layout caps (ultra-wide guard) ---- */
+  --layout-max-width: 120rem; /* ~1920px, cap ultra-wide stretch */
+
+  /* ---- Misc ---- */
+  --transition-fast: 120ms ease;
+}
+
+/* ---------- Fluid root typography ----------
+ * Base 14px on small screens, scales with viewport up to 18px on
+ * ultra-wide monitors. All rem values cascade from this. */
+html {
+  font-size: clamp(14px, 0.5vw + 8px, 18px);
+}
+
+/* ---------- Global base ---------- */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* ---------- Responsive media defaults ---------- */
+img,
+svg,
+picture,
+video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ---------- Ultra-wide layering ---------- */
+@media (min-width: 1800px) {
+  html { font-size: 17px; }
+}
+@media (min-width: 2400px) {
+  html { font-size: 18px; }
+}

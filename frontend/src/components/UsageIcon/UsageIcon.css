@@ -1,0 +1,36 @@
+@import "../../styles.css";
+
+.usage-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  border: var(--border-width) solid var(--color-brown-dark);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.usage-icon-pee {
+  background-color: var(--color-yellow-light);
+}
+
+.usage-icon-poo {
+  background-color: var(--color-brown-light);
+}
+
+.usage-icon-empty {
+  background: transparent;
+  border: none;
+}
+
+.usage-icon-person {
+  font-size: var(--icon-size-lg) !important;
+}
+
+.usage-icon-pee .usage-icon-person {
+  color: var(--color-brown-mid) !important;
+}
+
+.usage-icon-poo .usage-icon-person {
+  color: var(--color-brown-dark) !important;
+}

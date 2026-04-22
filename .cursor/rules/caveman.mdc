@@ -1,0 +1,21 @@
+---
+description: Caveman skill location, upstream docs, and when to apply it
+alwaysApply: true
+---
+
+# Caveman (this repo)
+
+This workspace includes [Caveman](https://github.com/JuliusBrussee/caveman/blob/main/README.md) via `npx skills add`.
+
+**Authoritative local skill (read this when using Caveman):** `.agents/skills/caveman/SKILL.md`
+
+**Upstream overview / install / ecosystem:** [github.com/JuliusBrussee/caveman — README](https://github.com/JuliusBrussee/caveman/blob/main/README.md)
+
+**Other bundled skills (same `.agents/skills/` tree):** `caveman-commit`, `caveman-review`, `caveman-help`, `caveman-compress`, `compress` — each has its own `SKILL.md`.
+
+## When to apply
+
+- User says caveman / talk like caveman / less tokens / terse / `/caveman`, or asks for caveman-commit / caveman-review / caveman-help / compress: **read the matching `SKILL.md` under `.agents/skills/` and follow it.**
+- Otherwise keep normal tone; this rule still applies so you **know where Caveman lives** and can open those files on request.
+
+Stop caveman only when user says **stop caveman** or **normal mode** (per upstream README).

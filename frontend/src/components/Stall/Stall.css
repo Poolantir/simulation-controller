@@ -1,7 +1,9 @@
+@import "../../styles.css";
+
 .stall {
   display: flex;
   flex-direction: row;
-  align-items: flex-end;
+  align-items: center;
   position: relative;
 }
 
@@ -10,41 +12,44 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 54px;
-  height: 60px;
+  width: 4.6875rem;     /* 75px */
+  height: 5.3125rem;    /* 85px */
+  margin-top: 0.40625rem; /* 6.5px */
 }
 
 .stall-base {
-  width: 54px;
-  height: 60px;
-  background: #fff;
-  border: 5px solid #000;
-  border-radius: 22px 0 0 22px;
+  width: 4.6875rem;
+  height: 5.3125rem;
+  background: var(--color-white);
+  border-width: var(--border-width-stall) 1rem var(--border-width-stall) var(--border-width-stall);
+  border-style: solid;
+  border-color: var(--color-border-dark);
+  border-radius: 1.875rem 0 0 1.875rem; /* 30px */
   box-sizing: border-box;
   position: absolute;
   inset: 0;
 }
 
 .stall-bowl {
-  width: 46px;
-  height: 46px;
-  background: #fff;
-  border-radius: 18px;
+  width: 3.9rem;     /* 65px */
+  height: 3.9rem;
+  background: var(--color-white);
+  border-radius: 1.5625rem; /* 25px */
   position: absolute;
   top: 50%;
-  left: 45%;
-  transform: translate(-50%, -50%);
+  left: 50%;
+  transform: translate(-49%, -50%);
   z-index: 1;
 }
 
 .stall-node-id {
   position: absolute;
   top: 50%;
-  left: 45%;
+  left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 18px;
-  font-weight: 700;
-  color: #000;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-border-dark);
   z-index: 2;
 }
 
@@ -53,33 +58,40 @@
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  height: 88px;
-  align-self: center;
+  flex-shrink: 0;
 }
 
 .stall-handle {
-  width: 18px;
-  height: 5px;
-  background: #DFDFDF;
-  margin-left: -2px;
+  width: 1.625rem;      /* 26px */
+  height: 0.40625rem;   /* 6.5px */
+  background: var(--color-gray-200);
+  margin-left: -0.1875rem; /* -3px */
   z-index: 1;
 }
 
 .stall-top {
-  width: 27px;
-  height: 88px;
-  background: #fff;
-  border: 5px solid #000;
-  border-radius: 8px;
+  width: 2.3125rem;     /* 37px */
+  height: 7.6875rem;    /* 123px */
+  background: var(--color-white);
+  border: var(--border-width-stall) solid var(--color-border-dark);
+  border-radius: var(--radius-md);
   box-sizing: border-box;
-  margin-left: -5px;
+  margin-left: -0.4375rem; /* -7px */
 }
 
-/* Mini variant for sidebar icon */
-.stall-mini {
-  transform: scale(0.5);
+/* ---- Size variants ---------------------------------------
+ * `stall--large` is the default digital-twin size (no extra
+ * transform, all intrinsic rem dimensions above apply).
+ * `stall--small` is the compact sidebar / legend size — same
+ * artwork, scaled down uniformly so proportions stay exact. */
+.stall--large {
+  /* intentionally empty: uses intrinsic rem sizing */
+}
+
+.stall--small {
+  transform: scale(0.4);
   transform-origin: top left;
 }
-.stall-mini .stall-right {
+.stall--small .stall-right {
   height: auto;
 }

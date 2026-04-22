@@ -1,5 +1,6 @@
 import { Box } from "@mui/material";
 import Urinal from "../Urinal/Urinal";
+import UsageIcon from "../UsageIcon/UsageIcon";
 import UsagePercentageSquare from "../UsagePercentageSquare/UsagePercentageSquare";
 import "./UrinalContainer.css";
 
@@ -13,8 +14,8 @@ export default function UrinalContainer({
     <Box className="urinal-container">
       <Box className="urinal-container-left">
         <Box className="urinal-container-body">
-          <Box className={`urinal-container-fill urinal-fill-${fillColor}`} />
-          <Urinal id={id} />
+          <UsageIcon variant={fillColor} className="urinal-container-fill" />
+          <Urinal id={id} size="large" />
         </Box>
         <Box className="urinal-container-line" />
       </Box>

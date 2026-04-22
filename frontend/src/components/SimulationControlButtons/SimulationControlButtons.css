@@ -1,50 +1,52 @@
+@import "../../styles.css";
+
 .control-buttons-row {
   display: flex;
-  gap: 8px;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--space-2);
   margin-top: auto;
 }
 
 .control-btn {
-  min-width: 60px !important;
-  height: 40px !important;
-  border-radius: 8px !important;
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: var(--radius-button) !important;
   text-transform: none !important;
-  font-weight: 600 !important;
-  padding: 4px 16px !important;
+  font-weight: var(--font-weight-medium) !important;
+  font-size: clamp(0.6875rem, 0.45rem + 0.35vw, 0.8125rem) !important;
+  line-height: 1.25 !important;
+  padding-block: var(--space-2) !important;
+  padding-inline: var(--space-1) !important;
+  white-space: nowrap !important;
 }
 
-.control-btn-start {
-  background-color: #d4edda !important;
-  border: 2px solid #5da85a !important;
-  color: #5da85a !important;
-}
-.control-btn-start:hover {
-  background-color: #c3e6cb !important;
-}
-
-.control-btn-pause {
-  background-color: #e2e3e5 !important;
-  border: 2px solid #888 !important;
-  color: #666 !important;
-}
-.control-btn-pause:hover {
-  background-color: #d6d8db !important;
-}
-
-.control-btn-stop {
-  background-color: #f8d7da !important;
-  border: 2px solid #c55 !important;
-  color: #8b2020 !important;
-}
-.control-btn-stop:hover {
-  background-color: #f1c1c5 !important;
-}
-
+/* Same border / surface treatment as "+1 Cleanliness to All" (`.condition-batch-btn`) */
+.control-btn-start,
+.control-btn-pause,
+.control-btn-stop,
 .control-btn-replay {
-  background-color: #d1ecf1 !important;
-  border: 2px solid #5599cc !important;
-  color: #3388bb !important;
+  background-color: var(--color-gray-100) !important;
+  color: var(--color-gray-700) !important;
+  border-color: var(--color-gray-500) !important;
 }
+
+.control-btn-start:hover,
+.control-btn-pause:hover,
+.control-btn-stop:hover,
 .control-btn-replay:hover {
-  background-color: #bee5eb !important;
+  background-color: var(--color-gray-200) !important;
+  border-color: var(--color-gray-600) !important;
+  color: var(--color-gray-700) !important;
+}
+
+.control-btn-start.Mui-focusVisible,
+.control-btn-pause.Mui-focusVisible,
+.control-btn-stop.Mui-focusVisible,
+.control-btn-replay.Mui-focusVisible,
+.control-btn-start:focus-visible,
+.control-btn-pause:focus-visible,
+.control-btn-stop:focus-visible,
+.control-btn-replay:focus-visible {
+  border-color: var(--color-gray-600) !important;
 }

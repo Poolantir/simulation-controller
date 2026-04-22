@@ -1,11 +1,13 @@
+@import "../../styles.css";
+
 .stall-container {
   display: flex;
   flex-direction: row;
   align-items: center;
-  width: 100%;
-  flex: 1 1 0;
-  min-height: 0;
+  width: 32.8125rem;   /* 525px */
+  height: 9.6875rem;   /* 155px */
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .stall-container-left {
@@ -13,8 +15,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  flex: 1;
-  min-width: 0;
+  width: 23.75rem;     /* 380px */
   height: 100%;
 }
 
@@ -23,38 +24,23 @@
   align-items: center;
   justify-content: flex-end;
   flex: 1;
-  min-height: 0;
   width: 100%;
-  gap: 10px;
-  padding-right: 10px;
+  gap: var(--space-5);
+  padding-right: var(--space-5);
   box-sizing: border-box;
 }
 
 .stall-container-line {
-  width: 100%;
-  max-width: 320px;
-  height: 2px;
-  background-color: #999;
+  width: 23.75rem;     /* 380px */
+  height: 0.1875rem;   /* 3px */
+  background-color: var(--color-divider);
   flex-shrink: 0;
 }
 
+/* Sizing for the shared UsageIcon when used as a stall fill */
 .stall-container-fill {
-  width: 55px;
-  height: 55px;
-  border-radius: 10px;
-  flex-shrink: 0;
-}
-
-.stall-fill-pee {
-  background-color: #FFE96D;
-}
-
-.stall-fill-poo {
-  background-color: #C0A300;
-}
-
-.stall-fill-empty {
-  background-color: transparent;
+  width: 5rem;         /* 80px */
+  height: 5rem;
 }
 
 .stall-out-of-order {
@@ -62,8 +48,9 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  flex: 1 1 0;
-  min-height: 0;
-  gap: 24px;
+  width: 32.8125rem;
+  height: 9.6875rem;
+  gap: var(--space-9);
+  flex-shrink: 0;
+  color: var(--color-text);
 }

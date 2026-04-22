@@ -1,3 +1,9 @@
+export const defaultSimulationConfig = {
+  toiletTypes: ["stall", "stall", "stall", "urinal", "urinal", "urinal"],
+  shyPeerPct: 5,
+  middleToiletFirstChoicePct: 2,
+};
+
 export const mockState = {
   elapsedTimeText: "Simulation Time Elapsed: 1hr 20min",
 
@@ -19,21 +25,21 @@ export const mockState = {
   ],
 
   urinals: [
-    { id: 1, usagePct: 30 },
-    { id: 2, usagePct: 32 },
-    { id: 3, usagePct: 6 },
+    { id: 4, usagePct: 30 },
+    { id: 5, usagePct: 32 },
+    { id: 6, usagePct: 6 },
   ],
 
   restroomConditions: {
     stalls: [
-      { id: 1, condition: "Clean (Priority 1)" },
-      { id: 2, condition: "Fair (Priority 2)" },
-      { id: 3, condition: "Out-of-Order (Priority N/A)" },
+      { id: 1, condition: "Clean" },
+      { id: 2, condition: "Fair" },
+      { id: 3, condition: "Out-of-Order" },
     ],
     urinals: [
-      { id: 1, condition: "Clean (Priority 1)" },
-      { id: 2, condition: "Clean (Priority 1)" },
-      { id: 3, condition: "Dirty (Priority 3)" },
+      { id: 4, condition: "Clean" },
+      { id: 5, condition: "Clean" },
+      { id: 6, condition: "Dirty" },
     ],
   },
 

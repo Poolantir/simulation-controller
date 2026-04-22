@@ -1,0 +1,84 @@
+@import "../../styles.css";
+
+.sim-config {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: var(--space-4);
+}
+
+/* -- Toilet type row: 6 equal columns, label above select -- */
+.sim-config-toilets {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.sim-config-toilet-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.sim-config-toilet-label {
+  font-size: clamp(0.8125rem, 0.6rem + 0.45vw, 1rem) !important;
+  font-weight: var(--font-weight-medium) !important;
+  line-height: 1.2 !important;
+  color: var(--color-text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sim-config-toilet-select .MuiSelect-select {
+  padding: var(--space-2) var(--space-2) !important;
+  font-size: clamp(0.8125rem, 0.6rem + 0.45vw, 1rem) !important;
+  line-height: 1.35 !important;
+}
+
+.sim-config-toilet-select .MuiSelect-icon {
+  font-size: 1.25rem;
+}
+
+.sim-config-toilet-menu .MuiMenuItem-root {
+  font-size: clamp(0.8125rem, 0.6rem + 0.45vw, 1rem) !important;
+  line-height: 1.35 !important;
+}
+
+/* -- Percentage parameter fields: inline row, two equal columns -- */
+.sim-config-params {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--space-4);
+  flex: 1;
+  min-height: 0;
+}
+
+.sim-config-param-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-config-param-label {
+  font-size: clamp(0.75rem, 0.5rem + 0.35vw, 0.875rem) !important;
+  font-weight: var(--font-weight-medium) !important;
+  line-height: 1.3 !important;
+  color: var(--color-text);
+  margin-bottom: var(--space-1) !important;
+}
+
+.sim-config-param-input .MuiOutlinedInput-root {
+  font-size: clamp(0.75rem, 0.5rem + 0.35vw, 0.875rem) !important;
+}
+
+.sim-config-param-input .MuiOutlinedInput-input {
+  padding: var(--space-2) var(--space-3) !important;
+}

@@ -1,3 +1,5 @@
+@import "../../styles.css";
+
 .urinal {
   display: flex;
   flex-direction: row;
@@ -6,26 +8,26 @@
 }
 
 .urinal-bowl {
-  width: 19px;
-  height: 70px;
-  background: #fff;
-  border: 5px solid #000;
-  border-radius: 18px 0 0 18px;
+  width: 1.625rem;     /* 26px */
+  height: 6.125rem;    /* 98px */
+  background: var(--color-white);
+  border: var(--border-width-heavy) solid var(--color-border-dark);
+  border-radius: 1.5625rem 0 0 1.5625rem; /* 25px */
   box-sizing: border-box;
   z-index: 1;
 }
 
 .urinal-base-wrapper {
   position: relative;
-  margin-left: -5px;
+  margin-left: -0.4375rem; /* -7px */
 }
 
 .urinal-base {
-  width: 31px;
-  height: 82px;
-  background: #fff;
-  border: 5px solid #000;
-  border-radius: 8px;
+  width: 2.6875rem;    /* 43px */
+  height: 7.125rem;    /* 114px */
+  background: var(--color-white);
+  border: var(--border-width-heavy) solid var(--color-border-dark);
+  border-radius: var(--radius-md);
   box-sizing: border-box;
 }
 
@@ -34,14 +36,22 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 18px;
-  font-weight: 700;
-  color: #000;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-border-dark);
   z-index: 2;
 }
 
-/* Mini variant for sidebar icon */
-.urinal-mini {
-  transform: scale(0.5);
+/* ---- Size variants ---------------------------------------
+ * `urinal--large` is the default digital-twin size (no extra
+ * transform, all intrinsic rem dimensions above apply).
+ * `urinal--small` is the compact sidebar / legend size — same
+ * artwork, scaled down uniformly so proportions stay exact. */
+.urinal--large {
+  /* intentionally empty: uses intrinsic rem sizing */
+}
+
+.urinal--small {
+  transform: scale(0.4);
   transform-origin: top left;
 }

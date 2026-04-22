@@ -12,10 +12,16 @@ export default function SimulationDigitalTwin({
   urinals,
   onAddPee,
   onAddPoo,
+  onClearQueue,
 }) {
   return (
     <Box className="digital-twin">
-      <Queue queue={queue} onAddPee={onAddPee} onAddPoo={onAddPoo} />
+      <Queue
+        queue={queue}
+        onAddPee={onAddPee}
+        onAddPoo={onAddPoo}
+        onClearQueue={onClearQueue}
+      />
 
       <Box className="digital-twin-right">
         <SimulationElapsedTime text={elapsedTimeText} />

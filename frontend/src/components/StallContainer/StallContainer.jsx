@@ -1,5 +1,6 @@
 import { Box, Typography } from "@mui/material";
 import Stall from "../Stall/Stall";
+import UsageIcon from "../UsageIcon/UsageIcon";
 import UsagePercentageSquare from "../UsagePercentageSquare/UsagePercentageSquare";
 import "./StallContainer.css";
 
@@ -25,8 +26,8 @@ export default function StallContainer({
     <Box className="stall-container">
       <Box className="stall-container-left">
         <Box className="stall-container-body">
-          <Box className={`stall-container-fill stall-fill-${fillColor}`} />
-          <Stall id={id} />
+          <UsageIcon variant={fillColor} className="stall-container-fill" />
+          <Stall id={id} size="large" />
         </Box>
         <Box className="stall-container-line" />
       </Box>

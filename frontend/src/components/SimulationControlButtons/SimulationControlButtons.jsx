@@ -1,44 +1,44 @@
 import { Button } from "@mui/material";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import PauseIcon from "@mui/icons-material/Pause";
-import StopIcon from "@mui/icons-material/Stop";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import "./SimulationControlButtons.css";
 
-export default function SimulationControlButtons({ status, onChangeStatus }) {
+export default function SimulationControlButtons({ onChangeStatus }) {
   return (
     <div className="control-buttons-row">
       <Button
+        type="button"
         className="control-btn control-btn-start"
-        variant="contained"
-        disableElevation
+        variant="outlined"
+        size="small"
         onClick={() => onChangeStatus("running")}
       >
-        <PlayArrowIcon />
+        Play
       </Button>
       <Button
+        type="button"
         className="control-btn control-btn-pause"
-        variant="contained"
-        disableElevation
+        variant="outlined"
+        size="small"
         onClick={() => onChangeStatus("paused")}
       >
-        <PauseIcon />
+        Pause
       </Button>
       <Button
+        type="button"
         className="control-btn control-btn-stop"
-        variant="contained"
-        disableElevation
+        variant="outlined"
+        size="small"
         onClick={() => onChangeStatus("stopped")}
       >
-        <StopIcon />
+        Stop
       </Button>
       <Button
+        type="button"
         className="control-btn control-btn-replay"
-        variant="contained"
-        disableElevation
+        variant="outlined"
+        size="small"
         onClick={() => onChangeStatus("replay")}
       >
-        <RefreshIcon />
+        Reset
       </Button>
     </div>
   );

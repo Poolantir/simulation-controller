@@ -1,16 +1,22 @@
+@import "../../styles.css";
+
 .header {
-  height: 48px;
-  background-color: #ffffff;
+  height: 2.5rem; 
+  background-color: var(--color-surface-alt);
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   position: relative;
   z-index: 2;
+  padding: 0 var(--space-5);
+  box-sizing: border-box;
 }
 
 .header-logo {
-  height: 34px;
+  height: 2rem;       /* 48px base, scales with root */
+  max-width: 100%;
+  width: auto;
+  display: block;
 }
