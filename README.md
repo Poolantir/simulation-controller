@@ -90,5 +90,5 @@ Once running, the services are available at:
 | Service   | URL                        |
 |-----------|----------------------------|
 | React UI  | http://localhost:5173       |
-| Flask API | http://localhost:5000       |
+| Flask API | http://localhost:5001       |
 | InfluxDB  | http://localhost:8086       |
