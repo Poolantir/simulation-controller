@@ -35,7 +35,7 @@
   --color-brown-mid:    #d5ad61;
   --color-brown-dark:   #a67c32;
   --color-brown-darker: #8b6914;
-  --color-brown-text:   #4b382e;
+  --color-brown-text:   #685d58;
 
   /* ---- Semantic: surfaces / text / borders ---- */
   --color-text: var(--color-brown-text);
@@ -115,6 +115,9 @@
   --font-size-lg:  1.25rem;
   --font-size-xl:  1.5rem;
   --font-size-2xl: 1.75rem;
+
+  /* Simulation config + transport controls (Play/Pause/…) — one size */
+  --font-size-sim-control: clamp(0.6875rem, 0.45rem + 0.35vw, 0.8125rem);
 
   --line-height-tight: 1.2;
   --line-height-base:  1.6;

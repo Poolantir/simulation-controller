@@ -3,9 +3,9 @@
 .stall-container {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: stretch;
   width: 32.8125rem;   /* 525px */
-  height: 9.6875rem;   /* 155px */
+  min-height: 9.6875rem; /* 155px floor; digital twin flex grows row */
   box-sizing: border-box;
   flex-shrink: 0;
 }
@@ -14,7 +14,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   width: 23.75rem;     /* 380px */
   height: 100%;
 }
@@ -28,13 +28,6 @@
   gap: var(--space-5);
   padding-right: var(--space-5);
   box-sizing: border-box;
-}
-
-.stall-container-line {
-  width: 23.75rem;     /* 380px */
-  height: 0.1875rem;   /* 3px */
-  background-color: var(--color-divider);
-  flex-shrink: 0;
 }
 
 /* Sizing for the shared UsageIcon when used as a stall fill */
@@ -52,8 +45,8 @@
 .stall-out-of-order-label {
   flex-shrink: 0;
   font-weight: var(--font-weight-bold) !important;
-  font-size: clamp(0.875rem, 0.65rem + 0.4vw, 1rem) !important;
+  font-size: clamp(var(--font-size-md), 0.85rem + 0.55vw, var(--font-size-lg)) !important;
   line-height: 1.2 !important;
-  color: var(--color-brown-dark);
+  color: var(--color-black);
   white-space: nowrap;
 }

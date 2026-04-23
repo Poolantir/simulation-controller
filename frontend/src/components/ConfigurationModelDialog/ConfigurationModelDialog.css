@@ -1,0 +1,214 @@
+@import "../../styles.css";
+
+.config-model-paper {
+  border-radius: var(--radius-lg) !important;
+  border: var(--border-default);
+  max-width: 56rem;
+  width: calc(100% - 2rem);
+  max-height: calc(100vh - 1.5rem);
+}
+
+.config-model-title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-lg) !important;
+  color: var(--color-text);
+  padding-bottom: 0 !important;
+}
+
+.config-model-intro {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+  line-height: var(--line-height-base);
+}
+
+.config-model-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.config-model-params strong {
+  font-weight: var(--font-weight-bold);
+}
+
+.config-model-case {
+  margin-bottom: var(--space-7);
+  padding: var(--space-4);
+  border: var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+
+.config-model-case:last-of-type {
+  margin-bottom: var(--space-2);
+}
+
+.config-model-case-title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-md) !important;
+  color: var(--color-text);
+  margin-bottom: var(--space-3) !important;
+}
+
+.config-model-queue-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.config-model-queue-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+  margin-bottom: var(--space-3);
+  min-height: 2rem;
+}
+
+.config-model-queue-empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.config-model-queue-block {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  border: var(--border-width-thin) solid var(--color-border);
+  box-sizing: border-box;
+}
+
+.config-model-queue-block--pee {
+  background: var(--color-success);
+}
+
+.config-model-queue-block--poo {
+  background: var(--color-brown-mid);
+}
+
+.config-model-next-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.config-model-next-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.config-model-next-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-white);
+  border: var(--border-width-thin) solid rgba(0, 0, 0, 0.12);
+}
+
+.config-model-next-chip--pee {
+  background: var(--color-success);
+}
+
+.config-model-next-chip--poo {
+  background: var(--color-brown-mid);
+}
+
+.config-model-branch-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.config-model-diagram {
+  position: relative;
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.config-model-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 5.5rem;
+}
+
+.config-model-fixtures {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 720px) {
+  .config-model-fixtures {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.config-model-fixture {
+  border: var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  padding: var(--space-2);
+  text-align: center;
+  min-width: 0;
+}
+
+.config-model-fixture-type {
+  font-size: 0.65rem;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.config-model-fixture-id {
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  margin-bottom: var(--space-1);
+}
+
+.config-model-fixture-pct {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.config-model-fixture-pct--zero {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.config-model-footnote {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-4);
+  line-height: 1.45;
+}
+
+.config-model-warn {
+  font-size: var(--font-size-sm);
+  color: var(--color-danger-text);
+  margin-top: var(--space-2);
+}
+
+.config-model-actions {
+  padding-top: var(--space-2) !important;
+}

@@ -46,7 +46,7 @@
   min-width: 0;
   border-radius: var(--radius-button) !important;
   text-transform: none !important;
-  font-size: clamp(0.6875rem, 0.45rem + 0.35vw, 0.8125rem) !important;
+  font-size: var(--font-size-sim-control) !important;
   line-height: 1.25 !important;
   font-weight: var(--font-weight-medium) !important;
   white-space: normal !important;
@@ -77,8 +77,8 @@
 .condition-label {
   min-width: 5.75rem;
   font-weight: var(--font-weight-medium) !important;
-  font-size: clamp(0.8125rem, 0.65rem + 0.35vw, 1rem) !important;
-  line-height: 1.3 !important;
+  font-size: var(--font-size-sim-control) !important;
+  line-height: 1.25 !important;
   color: var(--color-text);
   white-space: nowrap;
   flex-shrink: 0;
@@ -92,14 +92,19 @@
 .sidebar-square--conditions .condition-select .MuiSelect-select {
   padding-top: var(--space-2) !important;
   padding-bottom: var(--space-2) !important;
-  font-size: clamp(0.8125rem, 0.65rem + 0.35vw, 1rem) !important;
-  line-height: 1.35 !important;
+  font-size: var(--font-size-sim-control) !important;
+  line-height: 1.25 !important;
   display: flex !important;
   align-items: center !important;
 }
 
+.sidebar-square--conditions .condition-select .MuiSelect-icon {
+  font-size: 1.125rem;
+}
+
 .sidebar-square--conditions .condition-menu-item {
-  font-size: clamp(0.8125rem, 0.65rem + 0.35vw, 1rem) !important;
+  font-size: var(--font-size-sim-control) !important;
+  line-height: 1.25 !important;
   min-height: auto !important;
   padding-top: var(--space-2) !important;
   padding-bottom: var(--space-2) !important;

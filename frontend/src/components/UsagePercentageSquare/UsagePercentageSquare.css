@@ -16,7 +16,3 @@
   font-size: var(--font-size-2xl) !important;
   font-weight: var(--font-weight-bold) !important;
 }
-
-.usage-square-alert {
-  background-color: var(--color-alert-bg);
-}

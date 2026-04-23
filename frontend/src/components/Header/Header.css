@@ -1,22 +1,62 @@
 @import "../../styles.css";
 
 .header {
-  height: 2.5rem; 
+  min-height: 2.75rem;
   background-color: var(--color-surface-alt);
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   width: 100%;
   flex-shrink: 0;
   position: relative;
   z-index: 2;
-  padding: 0 var(--space-5);
+  padding: var(--space-2) var(--space-5);
   box-sizing: border-box;
 }
 
 .header-logo {
-  height: 2rem;       /* 48px base, scales with root */
-  max-width: 100%;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  height: 2rem;
+  max-width: min(42vw, 100% - 20rem);
   width: auto;
   display: block;
+  pointer-events: none;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+  z-index: 1;
+}
+
+.header-action-btn {
+  border-radius: var(--radius-button) !important;
+  text-transform: none !important;
+  font-size: var(--font-size-sim-control) !important;
+  line-height: 1.25 !important;
+  font-weight: var(--font-weight-medium) !important;
+  white-space: nowrap !important;
+  background-color: var(--color-gray-100) !important;
+  color: var(--color-gray-700) !important;
+  border-color: var(--color-gray-500) !important;
+  padding-block: var(--space-2) !important;
+  padding-inline: var(--space-3) !important;
+}
+
+.header-action-btn:hover {
+  background-color: var(--color-gray-200) !important;
+  border-color: var(--color-gray-600) !important;
+  color: var(--color-gray-700) !important;
+}
+
+.header-action-btn.Mui-focusVisible,
+.header-action-btn:focus-visible {
+  border-color: var(--color-gray-600) !important;
 }

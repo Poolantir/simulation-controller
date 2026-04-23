@@ -3,7 +3,17 @@ import { CssBaseline, ThemeProvider, createTheme, Box } from "@mui/material";
 import Header from "./components/Header/Header";
 import Sidebar from "./components/Sidebar/Sidebar";
 import SimulationDigitalTwin from "./components/SimulationDigitalTwin/SimulationDigitalTwin";
-import { mockState, defaultSimulationConfig } from "./mock/mockState";
+import TestConnectionsDialog from "./components/TestConnectionsDialog/TestConnectionsDialog";
+import ConfigurationModelDialog from "./components/ConfigurationModelDialog/ConfigurationModelDialog";
+import {
+  mockState,
+  cloneDefaultSimulationConfig,
+  initialRestroomConditions,
+  initialStalls,
+  initialUrinals,
+  initialElapsedTimeText,
+  initialSatisfiedUsers,
+} from "./mock/mockState";
 
 const theme = createTheme({
   palette: {
@@ -17,9 +27,28 @@ let nextQueueId = mockState.queue.length + 1;
 
 export default function App() {
   const [, setSimulationStatus] = useState("stopped");
-  const [simulationConfig, setSimulationConfig] = useState(defaultSimulationConfig);
+  const [simulationConfig, setSimulationConfig] = useState(() =>
+    cloneDefaultSimulationConfig()
+  );
   const [queue, setQueue] = useState(mockState.queue);
   const [logs, setLogs] = useState(mockState.logs);
+  const [restroomConditions, setRestroomConditions] = useState(
+    () => structuredClone(mockState.restroomConditions)
+  );
+  const [stalls, setStalls] = useState(() =>
+    mockState.stalls.map((s) => ({ ...s }))
+  );
+  const [urinals, setUrinals] = useState(() =>
+    mockState.urinals.map((u) => ({ ...u }))
+  );
+  const [elapsedTimeText, setElapsedTimeText] = useState(
+    mockState.elapsedTimeText
+  );
+  const [satisfiedUsers, setSatisfiedUsers] = useState(
+    mockState.satisfiedUsers
+  );
+  const [testConnectionsOpen, setTestConnectionsOpen] = useState(false);
+  const [configurationModelOpen, setConfigurationModelOpen] = useState(false);
 
   const handleSimulationConfigChange = (partial) =>
     setSimulationConfig((prev) => ({ ...prev, ...partial }));
@@ -40,6 +69,32 @@ export default function App() {
     setLogs([]);
   };
 
+  const handleResetSimulation = () => {
+    nextQueueId = 1;
+    setSimulationStatus("stopped");
+    /* Restores toilet 1–3 stall / 4–6 urinal; twin separator styles follow. */
+    setSimulationConfig(cloneDefaultSimulationConfig());
+    setQueue([]);
+    setLogs([]);
+    setRestroomConditions(structuredClone(initialRestroomConditions));
+    setStalls(initialStalls.map((s) => ({ ...s })));
+    setUrinals(initialUrinals.map((u) => ({ ...u })));
+    setElapsedTimeText(initialElapsedTimeText);
+    setSatisfiedUsers(initialSatisfiedUsers);
+  };
+
+  const handleAppendLogLine = (line) => {
+    setLogs((prev) => [...prev, line]);
+  };
+
+  const handleTestConnections = () => {
+    setTestConnectionsOpen(true);
+  };
+
+  const handleViewConfigurationModel = () => {
+    setConfigurationModelOpen(true);
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -55,10 +110,25 @@ export default function App() {
           bgcolor: "background.default",
         }}
       >
-        <Header />
+        <Header
+          onViewConfigurationModel={handleViewConfigurationModel}
+          onResetSimulation={handleResetSimulation}
+          onTestConnections={handleTestConnections}
+        />
+        <ConfigurationModelDialog
+          open={configurationModelOpen}
+          onClose={() => setConfigurationModelOpen(false)}
+          simulationConfig={simulationConfig}
+          queue={queue}
+        />
+        <TestConnectionsDialog
+          open={testConnectionsOpen}
+          onClose={() => setTestConnectionsOpen(false)}
+          onAppendLog={handleAppendLogLine}
+        />
         <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar
-            restroomConditions={mockState.restroomConditions}
+            restroomConditions={restroomConditions}
             logs={logs}
             onClearLogs={handleClearLogs}
             onChangeStatus={setSimulationStatus}
@@ -66,11 +136,12 @@ export default function App() {
             onSimulationConfigChange={handleSimulationConfigChange}
           />
           <SimulationDigitalTwin
-            elapsedTimeText={mockState.elapsedTimeText}
-            satisfiedUsers={mockState.satisfiedUsers}
+            elapsedTimeText={elapsedTimeText}
+            satisfiedUsers={satisfiedUsers}
             queue={queue}
-            stalls={mockState.stalls}
-            urinals={mockState.urinals}
+            toiletTypes={simulationConfig.toiletTypes}
+            stalls={stalls}
+            urinals={urinals}
             onAddPee={handleAddPee}
             onAddPoo={handleAddPoo}
             onClearQueue={handleClearQueue}

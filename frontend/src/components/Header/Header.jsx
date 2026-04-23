@@ -1,14 +1,47 @@
-import { Box } from "@mui/material";
+import { Box, Button } from "@mui/material";
 import "./Header.css";
 
-export default function Header() {
+export default function Header({
+  onViewConfigurationModel,
+  onResetSimulation,
+  onTestConnections,
+}) {
   return (
-    <Box className="header">
+    <Box className="header" component="header">
       <img
         className="header-logo"
         src="/poolantir-simulation-logo.svg"
         alt="Poolantir Simulation"
       />
+      <Box className="header-actions">
+        <Button
+          type="button"
+          className="header-action-btn"
+          variant="outlined"
+          size="small"
+          onClick={onViewConfigurationModel}
+        >
+          View Configuration Model
+        </Button>
+        <Button
+          type="button"
+          className="header-action-btn"
+          variant="outlined"
+          size="small"
+          onClick={onResetSimulation}
+        >
+          Reset Simulation
+        </Button>
+        <Button
+          type="button"
+          className="header-action-btn"
+          variant="outlined"
+          size="small"
+          onClick={onTestConnections}
+        >
+          Test Connections
+        </Button>
+      </Box>
     </Box>
   );
 }

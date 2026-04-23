@@ -1,8 +1,51 @@
+/**
+ * Default layout: toilets 1–3 stalls, 4–6 urinals. Reset Simulation restores
+ * this via cloneDefaultSimulationConfig(). Digital twin separators (full vs
+ * short rule under each toilet) follow these types from live config.
+ */
 export const defaultSimulationConfig = {
   toiletTypes: ["stall", "stall", "stall", "urinal", "urinal", "urinal"],
   shyPeerPct: 5,
   middleToiletFirstChoicePct: 2,
 };
+
+/** Fresh config object (arrays copied) for resets / controlled state */
+export function cloneDefaultSimulationConfig() {
+  return {
+    toiletTypes: [...defaultSimulationConfig.toiletTypes],
+    shyPeerPct: defaultSimulationConfig.shyPeerPct,
+    middleToiletFirstChoicePct:
+      defaultSimulationConfig.middleToiletFirstChoicePct,
+  };
+}
+
+export const initialRestroomConditions = {
+  stalls: [
+    { id: 1, condition: "Clean" },
+    { id: 2, condition: "Clean" },
+    { id: 3, condition: "Clean" },
+  ],
+  urinals: [
+    { id: 4, condition: "Clean" },
+    { id: 5, condition: "Clean" },
+    { id: 6, condition: "Clean" },
+  ],
+};
+
+export const initialStalls = [
+  { id: 1, usagePct: 0 },
+  { id: 2, usagePct: 0 },
+  { id: 3, usagePct: 0 },
+];
+
+export const initialUrinals = [
+  { id: 4, usagePct: 0 },
+  { id: 5, usagePct: 0 },
+  { id: 6, usagePct: 0 },
+];
+
+export const initialElapsedTimeText = "Simulation Time Elapsed: 0min";
+export const initialSatisfiedUsers = 0;
 
 export const mockState = {
   elapsedTimeText: "Simulation Time Elapsed: 1hr 20min",

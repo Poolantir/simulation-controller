@@ -8,23 +8,16 @@ export default function UrinalContainer({
   id,
   usagePct,
   fillColor = "pee",
-  alert = false,
-  border = "bottom",
 }) {
-  const showTop = border === "top" || border === "top-and-bottom";
-  const showBottom = border === "bottom" || border === "top-and-bottom";
-
   return (
     <Box className="urinal-container">
       <Box className="urinal-container-left">
-        {showTop && <Box className="urinal-container-line" />}
         <Box className="urinal-container-body">
           <UsageIcon variant={fillColor} className="urinal-container-fill" />
           <Urinal id={id} size="large" />
         </Box>
-        {showBottom && <Box className="urinal-container-line" />}
       </Box>
-      <UsagePercentageSquare percentage={usagePct} alert={alert} />
+      <UsagePercentageSquare percentage={usagePct} />
     </Box>
   );
 }

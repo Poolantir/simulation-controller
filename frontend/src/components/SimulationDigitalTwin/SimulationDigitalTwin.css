@@ -22,7 +22,7 @@
   box-sizing: border-box;
   overflow: hidden;
   background: var(--color-surface);
-  border: var(--border-width-thin) solid var(--color-border);
+  border: var(--border-default);
   border-radius: var(--radius-lg);
 }
 
@@ -36,25 +36,98 @@
   overflow: hidden;
 }
 
+/* Keep elapsed-time header from shrinking; toilet column absorbs remaining height */
+.digital-twin-right .elapsed-time-block {
+  flex-shrink: 0;
+}
+
 .toilet-column {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: space-between;
-  flex: 1;
+  justify-content: flex-start;
+  flex: 1 1 auto;
+  align-self: stretch;
   min-height: 0;
   gap: 0;
-  overflow: hidden;
-  /*
-   * Individual stall/urinal containers use spec-exact sizing
-   * (container 32.8125rem x 9.6875rem). The column distributes
-   * them vertically with `space-between` so the first toilet sits
-   * at the top edge and the last toilet flushes to the bottom,
-   * filling the entire digital-twin height. A uniform `zoom`
-   * scale-down kicks in for shorter viewports so six toilets
-   * still fit without overflow.
-   */
+  overflow-x: hidden;
+  overflow-y: auto;
   zoom: 0.7;
+}
+
+/* Six equal-height rows + hairline seps; absorbs column height */
+.toilet-column-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 32.8125rem;
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 0;
+  /* Urinal sep: starts left of fixture (past bowl), runs through % square to match stall right edge */
+  --urinal-art-column: 23.75rem;
+  /* ~12.8rem ≈ left edge of icon+urinal in 23.75rem column; 12rem run → small protrusion past bowl */
+  --urinal-sep-left-run: 12rem;
+  --urinal-sep-start: calc(var(--urinal-art-column) - var(--urinal-sep-left-run));
+}
+
+.toilet-column-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.toilet-column-slot .stall-container,
+.toilet-column-slot .urinal-container {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+}
+
+/* Square % tile (not stretched to row height); centered in tall rows */
+.toilet-column .usage-square {
+  width: 9.0625rem;
+  aspect-ratio: 1;
+  height: auto;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.toilet-column .usage-square-text {
+  font-size: clamp(1.125rem, 3.2vmin, 2.25rem) !important;
+}
+
+.toilet-column .stall-container-fill,
+.toilet-column .urinal-container-fill {
+  width: clamp(5rem, 11vmin, 8.5rem);
+  height: clamp(5rem, 11vmin, 8.5rem);
+}
+
+/*
+ * Separator below toilet i uses toilet i’s kind from config.
+ * Stall: full row width. Urinal: inset start under fixtures, then spans to % square right edge.
+ */
+.toilet-column-separator {
+  height: 0.1875rem;
+  flex-shrink: 0;
+  border: none;
+  margin: 0;
+  background-color: var(--color-divider);
+}
+
+.toilet-column-separator--stall {
+  width: 100%;
+  align-self: stretch;
+}
+
+.toilet-column-separator--urinal {
+  width: calc(100% - var(--urinal-sep-start));
+  margin-left: var(--urinal-sep-start);
+  align-self: flex-start;
+  box-sizing: border-box;
 }
 
 @media (min-height: 900px) {

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Box } from "@mui/material";
 import Queue from "../Queue/Queue";
 import SimulationElapsedTime from "../SimulationElapsedTime/SimulationElapsedTime";
@@ -5,16 +6,48 @@ import StallContainer from "../StallContainer/StallContainer";
 import UrinalContainer from "../UrinalContainer/UrinalContainer";
 import "./SimulationDigitalTwin.css";
 
+const TWIN_SLOTS = 6;
+
+function mergeFixtureState(id, stalls, urinals) {
+  const s = stalls.find((x) => x.id === id);
+  const u = urinals.find((x) => x.id === id);
+  const src = s || u || {};
+  return {
+    usagePct: src.usagePct ?? 0,
+    outOfOrder: src.outOfOrder ?? false,
+  };
+}
+
+/** One row per toilet 1…6; kind from Simulation Configuration; usage from either list by id. */
+function buildTwinRows(toiletTypes, stalls, urinals) {
+  const types = Array.isArray(toiletTypes) ? toiletTypes : [];
+  return Array.from({ length: TWIN_SLOTS }, (_, i) => {
+    const id = i + 1;
+    const raw = types[i];
+    const isStall = String(raw).toLowerCase() === "stall";
+    const { usagePct, outOfOrder } = mergeFixtureState(id, stalls, urinals);
+    return {
+      id,
+      kind: isStall ? "stall" : "urinal",
+      usagePct,
+      outOfOrder,
+    };
+  });
+}
+
 export default function SimulationDigitalTwin({
   elapsedTimeText,
   satisfiedUsers,
   queue,
+  toiletTypes,
   stalls,
   urinals,
   onAddPee,
   onAddPoo,
   onClearQueue,
 }) {
+  const rows = buildTwinRows(toiletTypes, stalls, urinals);
+
   return (
     <Box className="digital-twin">
       <Queue
@@ -31,28 +64,51 @@ export default function SimulationDigitalTwin({
         />
 
         <Box className="toilet-column">
-          {stalls.map((s, idx) => (
-            <StallContainer
-              key={`stall-${s.id}`}
-              id={s.id}
-              usagePct={s.usagePct}
-              outOfOrder={s.outOfOrder || false}
-              fillColor={s.outOfOrder ? "empty" : "pee"}
-              alert={s.usagePct <= 10 && !s.outOfOrder}
-              border={idx === 0 ? "top-and-bottom" : "bottom"}
-            />
-          ))}
+          <Box className="toilet-column-stack">
+            {rows.map((row, idx) => {
+              const isStall = row.kind === "stall";
+              const stallOccupied =
+                isStall && !row.outOfOrder && (row.usagePct ?? 0) > 0;
+              const urinalOccupied =
+                !isStall && (row.usagePct ?? 0) > 0;
 
-          {urinals.map((u, idx) => (
-            <UrinalContainer
-              key={`urinal-${u.id}`}
-              id={u.id}
-              usagePct={u.usagePct}
-              fillColor="pee"
-              alert={u.usagePct <= 10}
-              border={idx === 0 ? "top-and-bottom" : "bottom"}
-            />
-          ))}
+              const nextRow = idx < rows.length - 1 ? rows[idx + 1] : null;
+              const sepIsStall =
+                nextRow != null &&
+                (isStall || nextRow.kind === "stall");
+
+              return (
+                <Fragment key={`toilet-${row.id}`}>
+                  <Box className="toilet-column-slot">
+                    {isStall ? (
+                      <StallContainer
+                        id={row.id}
+                        usagePct={row.usagePct}
+                        outOfOrder={row.outOfOrder || false}
+                        fillColor={
+                          row.outOfOrder ? "empty" : stallOccupied ? "pee" : "empty"
+                        }
+                      />
+                    ) : (
+                      <UrinalContainer
+                        id={row.id}
+                        usagePct={row.usagePct}
+                        fillColor={urinalOccupied ? "pee" : "empty"}
+                      />
+                    )}
+                  </Box>
+                  {idx < rows.length - 1 ? (
+                    <Box
+                      className={`toilet-column-separator toilet-column-separator--${
+                        sepIsStall ? "stall" : "urinal"
+                      }`}
+                      aria-hidden
+                    />
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </Box>
         </Box>
       </Box>
     </Box>

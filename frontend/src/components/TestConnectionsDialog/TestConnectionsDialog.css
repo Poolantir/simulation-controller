@@ -1,0 +1,149 @@
+@import "../../styles.css";
+
+.test-connections-paper {
+  border-radius: var(--radius-lg) !important;
+  border: var(--border-default);
+  max-width: 72rem;
+  width: calc(100% - 2rem);
+  max-height: calc(100vh - 2rem);
+}
+
+.test-connections-title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-lg) !important;
+  color: var(--color-text);
+  padding-bottom: 0 !important;
+}
+
+.test-connections-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.test-connections-toolbar-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.test-connections-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 1100px) {
+  .test-connections-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .test-connections-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.node-test-card {
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.node-test-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-soft);
+}
+
+.node-test-card__title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-md) !important;
+  color: var(--color-text);
+}
+
+.node-test-card__status {
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.node-test-card__status--on {
+  color: var(--color-success);
+}
+
+.node-test-card__status--off {
+  color: var(--color-text-muted);
+}
+
+.node-test-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.node-test-card__label {
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text);
+}
+
+.node-test-card .MuiFormControlLabel-root {
+  margin-right: var(--space-3);
+  margin-left: 0;
+}
+
+.node-test-card .MuiFormControlLabel-label,
+.node-test-card .MuiRadio-root {
+  font-size: var(--font-size-sm) !important;
+}
+
+.node-test-card__row-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.node-test-card__btn {
+  border-radius: var(--radius-button) !important;
+  text-transform: none !important;
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.node-test-card__btn--primary {
+  background-color: var(--color-gray-100) !important;
+  color: var(--color-gray-700) !important;
+  border-color: var(--color-gray-500) !important;
+}
+
+.node-test-card__btn--primary:hover {
+  background-color: var(--color-gray-200) !important;
+  border-color: var(--color-gray-600) !important;
+}
+
+.node-test-card__btn--danger {
+  color: var(--color-danger-text) !important;
+  border-color: var(--color-danger) !important;
+}
+
+.node-test-card__btn--danger:hover {
+  background-color: var(--color-danger-bg) !important;
+}
+
+.test-connections-actions {
+  padding-top: var(--space-2) !important;
+  gap: var(--space-2);
+}

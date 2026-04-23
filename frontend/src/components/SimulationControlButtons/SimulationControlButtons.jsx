@@ -31,15 +31,6 @@ export default function SimulationControlButtons({ onChangeStatus }) {
       >
         Stop
       </Button>
-      <Button
-        type="button"
-        className="control-btn control-btn-replay"
-        variant="outlined"
-        size="small"
-        onClick={() => onChangeStatus("replay")}
-      >
-        Reset
-      </Button>
     </div>
   );
 }

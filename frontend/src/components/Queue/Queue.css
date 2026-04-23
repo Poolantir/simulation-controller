@@ -91,7 +91,7 @@
 }
 
 .queue-action-poo {
-  background: var(--color-brown-mid) !important;
+  background: var(--color-brown-light) !important;
 }
 
 .queue-action-btn:hover {
@@ -106,7 +106,7 @@
 
 .queue-action-poo .queue-action-icon {
   font-size: var(--icon-size-md) !important;
-  color: var(--color-brown-text) !important;
+  color: var(--color-brown-dark) !important;
 }
 
 .queue-list {

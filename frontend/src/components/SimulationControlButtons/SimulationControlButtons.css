@@ -14,7 +14,7 @@
   border-radius: var(--radius-button) !important;
   text-transform: none !important;
   font-weight: var(--font-weight-medium) !important;
-  font-size: clamp(0.6875rem, 0.45rem + 0.35vw, 0.8125rem) !important;
+  font-size: var(--font-size-sim-control) !important;
   line-height: 1.25 !important;
   padding-block: var(--space-2) !important;
   padding-inline: var(--space-1) !important;
