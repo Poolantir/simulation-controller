@@ -1,4 +1,7 @@
 # Poolantir Simulation Interface
+
+TODO - ADD A PICTURE OF COMPLETED FRONTEND
+
 Interactive controller for the Poolantir 3D modeled diorama. This is intended to be a sort of human-in-the-loop simulation, requiring a human to configure the state of the bathroom, dispact "users" to the bathroom.
 The state of each toilet is dynamically set (clean, fair, dirty, out of order), and scheduled users are placed into 1 of 6 toilets depending on the type of usage and state of the toilet. 
 
