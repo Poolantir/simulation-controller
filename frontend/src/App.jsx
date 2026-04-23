@@ -4,7 +4,7 @@ import Header from "./components/Header/Header";
 import Sidebar from "./components/Sidebar/Sidebar";
 import SimulationDigitalTwin from "./components/SimulationDigitalTwin/SimulationDigitalTwin";
 import TestConnectionsDialog from "./components/TestConnectionsDialog/TestConnectionsDialog";
-import ConfigurationModelDialog from "./components/ConfigurationModelDialog/ConfigurationModelDialog";
+import BehavioralModelDialog from "./components/BehavioralModelDialog/BehavioralModelDialog";
 import {
   mockState,
   cloneDefaultSimulationConfig,
@@ -48,7 +48,7 @@ export default function App() {
     mockState.satisfiedUsers
   );
   const [testConnectionsOpen, setTestConnectionsOpen] = useState(false);
-  const [configurationModelOpen, setConfigurationModelOpen] = useState(false);
+  const [behavioralModelOpen, setBehavioralModelOpen] = useState(false);
 
   const handleSimulationConfigChange = (partial) =>
     setSimulationConfig((prev) => ({ ...prev, ...partial }));
@@ -91,8 +91,8 @@ export default function App() {
     setTestConnectionsOpen(true);
   };
 
-  const handleViewConfigurationModel = () => {
-    setConfigurationModelOpen(true);
+  const handleViewBehavioralModel = () => {
+    setBehavioralModelOpen(true);
   };
 
   return (
@@ -111,15 +111,15 @@ export default function App() {
         }}
       >
         <Header
-          onViewConfigurationModel={handleViewConfigurationModel}
+          onViewBehavioralModel={handleViewBehavioralModel}
           onResetSimulation={handleResetSimulation}
           onTestConnections={handleTestConnections}
         />
-        <ConfigurationModelDialog
-          open={configurationModelOpen}
-          onClose={() => setConfigurationModelOpen(false)}
+        <BehavioralModelDialog
+          open={behavioralModelOpen}
+          onClose={() => setBehavioralModelOpen(false)}
           simulationConfig={simulationConfig}
-          queue={queue}
+          restroomConditions={restroomConditions}
         />
         <TestConnectionsDialog
           open={testConnectionsOpen}

@@ -2,7 +2,7 @@ import { Box, Button } from "@mui/material";
 import "./Header.css";
 
 export default function Header({
-  onViewConfigurationModel,
+  onViewBehavioralModel,
   onResetSimulation,
   onTestConnections,
 }) {
@@ -19,9 +19,9 @@ export default function Header({
           className="header-action-btn"
           variant="outlined"
           size="small"
-          onClick={onViewConfigurationModel}
+          onClick={onViewBehavioralModel}
         >
-          View Configuration Model
+          View Behavioral Model
         </Button>
         <Button
           type="button"

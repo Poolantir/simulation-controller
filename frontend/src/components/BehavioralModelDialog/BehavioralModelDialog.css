@@ -1,0 +1,108 @@
+@import "../../styles.css";
+
+.bm-dialog-paper {
+  border-radius: var(--radius-lg) !important;
+  border: var(--border-default);
+  max-width: 72rem;
+  width: calc(100% - 2rem);
+  max-height: calc(100vh - 1.5rem);
+}
+
+.bm-dialog-title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-lg) !important;
+  color: var(--color-text);
+  padding-bottom: 0 !important;
+}
+
+.bm-dialog-intro {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+  line-height: var(--line-height-base);
+}
+
+.bm-dialog-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.bm-dialog-params strong {
+  font-weight: var(--font-weight-bold);
+}
+
+/* ---- Case 1 / Case 2 row (Horizontal flexbox) ---- */
+.bm-dialog-cases-row {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-5);
+  margin-bottom: var(--space-7);
+  align-items: stretch;
+}
+
+.bm-dialog-case-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-4);
+  border: var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Responsive stack on narrow viewports. */
+@media (max-width: 780px) {
+  .bm-dialog-cases-row {
+    flex-direction: column;
+  }
+}
+
+/* ---- General case (full-width, below) ---- */
+.bm-dialog-general {
+  padding: var(--space-5);
+  border: var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  margin-bottom: var(--space-6);
+}
+
+/* ---- Key legend ---- */
+.bm-dialog-key {
+  padding: var(--space-4);
+  border-top: var(--border-soft);
+  margin-top: var(--space-4);
+}
+
+.bm-dialog-key-title {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.bm-dialog-key-list {
+  margin: 0 0 var(--space-2) 0;
+  padding-left: var(--space-7);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  line-height: var(--line-height-base);
+}
+
+.bm-dialog-key-list strong {
+  font-weight: var(--font-weight-bold);
+}
+
+.bm-dialog-key-note {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.bm-dialog-actions {
+  padding-top: var(--space-2) !important;
+}

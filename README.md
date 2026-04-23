@@ -54,7 +54,7 @@ In real life, this is a FIFO queue (assumming human decency), where the next in 
 *Rules:*
 1. Pee ("1s") - can use either the urinals or stalls
 2. Shy pee-ers - this is a small percentage of the population who have peeing anxiety (assuming 2%). These users will elect to use the stalls as their first choice. 
-3. Respect assummed percentages - clean (100%), fair (75%), dirty (50%), out-of-order (0%), under service (0%). This is how priority is set.
+3. Respect assummed percentages - clean (100%), fair (75%), dirty (50%), In-Use (0%), out-of-order (0%). These percentages factor into the behavioral model for the FIFO scheduler.
 
 *Total Cases:*
 - urinals: 2^3 = 8 (not in use, pee)

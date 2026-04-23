@@ -1,0 +1,184 @@
+@import "../../styles.css";
+
+.bm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.bm-title {
+  font-size: var(--font-size-md) !important;
+  font-weight: var(--font-weight-bold) !important;
+  color: var(--color-text);
+  margin: 0 !important;
+  text-align: center;
+}
+
+.bm-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-2) 0;
+  text-align: center;
+  line-height: var(--line-height-tight);
+}
+
+.bm-canvas {
+  position: relative;
+  width: 100%;
+  /* viewBox aspect 1000 : 900 → padding-bottom 90% */
+  aspect-ratio: 1000 / 900;
+}
+
+.bm-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.bm-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ---- User icon (level-0) ---- */
+.bm-user {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 11%;          /* matches SVG userRect w = 110/1000 */
+  aspect-ratio: 1 / 1;
+}
+
+.bm-user-icon {
+  width: 100%;
+  height: 100%;
+  border-width: 0 !important;
+  background: transparent !important;
+}
+
+.bm--large .bm-user-icon .usage-icon-person {
+  font-size: 3.25rem !important;
+}
+.bm--small .bm-user-icon .usage-icon-person {
+  font-size: 1.75rem !important;
+}
+
+/* ---- Leaves ---- */
+.bm-leaf {
+  position: absolute;
+  left: 66%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  pointer-events: auto;
+}
+
+.bm-leaf--dim {
+  opacity: 0.35;
+}
+
+.bm-leaf-art-wrap {
+  position: relative;
+  /* fixed footprint so 6 rows stack without overflow */
+  overflow: hidden;
+}
+
+.bm--large .bm-leaf-art-wrap {
+  width: 4rem;
+  height: 4.75rem;
+}
+
+.bm--small .bm-leaf-art-wrap {
+  width: 2.25rem;
+  height: 2.65rem;
+}
+
+.bm-leaf-art {
+  position: absolute;
+  inset: 0;
+}
+
+/* Scale the intrinsic stall/urinal artwork into the wrap box. */
+.bm--large .bm-leaf-art .stall,
+.bm--large .bm-leaf-art .urinal {
+  transform: scale(0.55) translate(-2%, -2%) !important;
+  transform-origin: top left;
+}
+
+.bm--small .bm-leaf-art .stall,
+.bm--small .bm-leaf-art .urinal {
+  transform: scale(0.3) translate(-4%, -4%) !important;
+  transform-origin: top left;
+}
+
+/* ---- Total % chip ---- */
+.bm-leaf-total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-gray-100);
+  border: var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bm--large .bm-leaf-total {
+  min-width: 4rem;
+  height: 2rem;
+  font-size: var(--font-size-sm);
+  padding: 0 var(--space-3);
+}
+
+.bm--small .bm-leaf-total {
+  min-width: 2.5rem;
+  height: 1.25rem;
+  font-size: var(--font-size-xs);
+  padding: 0 var(--space-2);
+}
+
+/* ---- SVG text labels ---- */
+.bm-edge-label {
+  fill: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  font-family: inherit;
+  dominant-baseline: middle;
+}
+
+.bm--large .bm-edge-label {
+  font-size: 26px;
+}
+.bm--small .bm-edge-label {
+  font-size: 34px;
+}
+
+.bm-edge-label--small {
+  font-weight: var(--font-weight-regular);
+}
+
+.bm--large .bm-edge-label--small {
+  font-size: 22px;
+}
+.bm--small .bm-edge-label--small {
+  font-size: 28px;
+}
+
+.bm-empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: var(--space-2);
+}
