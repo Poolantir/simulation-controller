@@ -1,47 +1,140 @@
 @import "../../styles.css";
 
+/* Full-screen dialog: let the Paper fill the viewport. */
 .bm-dialog-paper {
-  border-radius: var(--radius-lg) !important;
-  border: var(--border-default);
-  max-width: 72rem;
-  width: calc(100% - 2rem);
-  max-height: calc(100vh - 1.5rem);
+  border-radius: 0 !important;
+  border: none;
+  background: var(--color-surface);
 }
 
 .bm-dialog-title {
+  position: relative;
   font-weight: var(--font-weight-bold) !important;
   font-size: var(--font-size-lg) !important;
   color: var(--color-text);
-  padding-bottom: 0 !important;
+  padding-right: 3rem !important;
+  padding-bottom: var(--space-3) !important;
 }
 
-.bm-dialog-intro {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-4);
-  line-height: var(--line-height-base);
+.bm-dialog-close {
+  position: absolute !important;
+  top: 50%;
+  right: var(--space-4);
+  transform: translateY(-50%);
+  color: var(--color-text-muted) !important;
 }
 
-.bm-dialog-params {
+.bm-dialog-close:hover {
+  background: var(--color-surface-alt) !important;
+  color: var(--color-text) !important;
+}
+
+/* DialogContent is the scrollable body between title and actions.
+ * Force it into a column-flex layout so the summary + cases-row can
+ * share the full content height at a fixed 25 / 75 ratio. */
+.bm-dialog-content {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 0;
+  overflow: hidden !important;
+}
+
+/* ---- Summary block ----
+ * Unified white card wrapping BOTH the params key (left) and the per-toilet
+ * context table (right). Height is content-driven (flex: 0 0 auto) so the
+ * card hugs its rows and the cases row below gets every spare pixel. */
+.bm-dialog-summary {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-5);
+  align-items: stretch;
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.bm-dialog-params-list {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.bm-param-row {
   font-size: var(--font-size-sm);
   color: var(--color-text);
+  line-height: var(--line-height-tight);
+  margin: 0 !important;
 }
 
-.bm-dialog-params strong {
+.bm-param-row strong {
   font-weight: var(--font-weight-bold);
 }
 
-/* ---- Case 1 / Case 2 row (Horizontal flexbox) ---- */
+.bm-param-row em {
+  font-style: italic;
+  font-family: "Cambria Math", "Latin Modern Math", "STIX Two Math", Cambria,
+    Georgia, serif;
+  letter-spacing: 0.02em;
+}
+
+/* Per-toilet context table — compact, borderless (container holds the chrome) */
+.bm-dialog-table-wrap {
+  flex: 1 1 0;
+  min-width: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.bm-dialog-table {
+  width: 100%;
+}
+
+.bm-dialog-table .bm-th,
+.bm-dialog-table .bm-td {
+  padding: 2px var(--space-3) !important;
+  font-size: var(--font-size-xs) !important;
+  line-height: 1.2 !important;
+  border-bottom: var(--border-soft);
+}
+
+.bm-dialog-table .bm-th {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+}
+
+.bm-dialog-table .bm-td {
+  color: var(--color-text);
+}
+
+.bm-dialog-table .bm-tr:last-of-type .bm-td {
+  border-bottom: none;
+}
+
+/* ---- Two decision trees: Pee | Poo (50% width each) ----
+ * Absorbs vertical space below the summary. */
 .bm-dialog-cases-row {
   display: flex;
   flex-direction: row;
   gap: var(--space-5);
-  margin-bottom: var(--space-7);
   align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .bm-dialog-case-cell {
@@ -53,56 +146,76 @@
   background: var(--color-surface-alt);
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-/* Responsive stack on narrow viewports. */
-@media (max-width: 780px) {
-  .bm-dialog-cases-row {
+/* Let each BehavioralModel fill its cell vertically. The SVG uses
+ * preserveAspectRatio="none" and the HTML overlay positions by
+ * percentage, so relaxing the canvas aspect ratio here lets the
+ * diagram grow to use the available vertical real-estate. */
+.bm-dialog-case-cell .bm {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.bm-dialog-case-cell .bm-canvas {
+  flex: 1 1 auto;
+  aspect-ratio: auto;
+  min-height: 0;
+  height: 100%;
+}
+
+/* One-line tree title + wide cells (2-up): scale up vs default bm--large. */
+.bm-dialog-case-cell .bm--large .bm-user-icon .usage-icon-person {
+  font-size: 4.25rem !important;
+}
+
+.bm-dialog-case-cell .bm--large .bm-leaf-art-wrap {
+  width: 4.75rem;
+  height: 4.75rem;
+}
+
+.bm-dialog-case-cell .bm--large .bm-leaf-art .stall,
+.bm-dialog-case-cell .bm--large .bm-leaf-art .urinal {
+  transform: scale(0.60) !important;
+}
+
+.bm-dialog-case-cell .bm--large .bm-leaf-usage .usage-square {
+  width: 3.75rem;
+  min-width: 3.75rem;
+  height: 3.75rem;
+}
+
+.bm-dialog-case-cell .bm--large .bm-leaf-usage .usage-square-text {
+  font-size: var(--font-size-sm) !important;
+}
+
+.bm-dialog-case-cell .bm--large .bm-edge-label {
+  font-size: 32px;
+}
+
+.bm-dialog-case-cell .bm--large .bm-edge-label--small {
+  font-size: 26px;
+}
+
+/* Stack summary on narrow viewports. */
+@media (max-width: 1100px) {
+  .bm-dialog-summary {
     flex-direction: column;
+    flex: 0 0 auto;
   }
 }
 
-/* ---- General case (full-width, below) ---- */
-.bm-dialog-general {
-  padding: var(--space-5);
-  border: var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-alt);
-  margin-bottom: var(--space-6);
-}
-
-/* ---- Key legend ---- */
-.bm-dialog-key {
-  padding: var(--space-4);
-  border-top: var(--border-soft);
-  margin-top: var(--space-4);
-}
-
-.bm-dialog-key-title {
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  margin: 0 0 var(--space-2) 0;
-}
-
-.bm-dialog-key-list {
-  margin: 0 0 var(--space-2) 0;
-  padding-left: var(--space-7);
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  line-height: var(--line-height-base);
-}
-
-.bm-dialog-key-list strong {
-  font-weight: var(--font-weight-bold);
-}
-
-.bm-dialog-key-note {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.bm-dialog-actions {
-  padding-top: var(--space-2) !important;
+@media (max-width: 900px) {
+  .bm-dialog-content {
+    overflow-y: auto !important;
+  }
+  .bm-dialog-cases-row {
+    flex-direction: column;
+    flex: 0 0 auto;
+  }
+  .bm-dialog-case-cell .bm-canvas {
+    aspect-ratio: 1000 / 900;
+    height: auto;
+  }
 }

@@ -5,8 +5,9 @@ import Urinal from "../Urinal/Urinal";
 import UsageIcon from "../UsageIcon/UsageIcon";
 import {
   computeBehavioralTree,
-  formatModelPercent,
+  roundModelPercent,
 } from "../../lib/behavioralModel";
+import UsagePercentageSquare from "../UsagePercentageSquare/UsagePercentageSquare";
 import "./BehavioralModel.css";
 
 /**
@@ -39,7 +40,7 @@ const POS = {
   urinalMid: { x: 360, y: 675 },
   leafDotX: 620,
   leafYs: [85, 225, 365, 535, 675, 815],
-  level1LabelX: 235,
+  level1LabelX: 190,
   level1LabelYs: [370, 540],
   level2LabelX: 480,
 };
@@ -123,15 +124,25 @@ export default function BehavioralModel({
 
   return (
     <Box className={`bm bm--${size}`}>
-      {title ? (
-        <Typography component="h3" className="bm-title">
-          {title}
-        </Typography>
-      ) : null}
-      {subtitle ? (
-        <Typography component="p" className="bm-subtitle">
-          {subtitle}
-        </Typography>
+      {title || subtitle ? (
+        <Box className="bm-heading" component="header">
+          {title ? (
+            <Typography component="h3" className="bm-title">
+              {title}
+            </Typography>
+          ) : null}
+          {title && subtitle ? (
+            <span className="bm-heading-sep" aria-hidden>
+              {" "}
+              —{" "}
+            </span>
+          ) : null}
+          {subtitle ? (
+            <Typography component="p" className="bm-subtitle">
+              {subtitle}
+            </Typography>
+          ) : null}
+        </Box>
       ) : null}
 
       <Box className="bm-canvas">
@@ -144,26 +155,41 @@ export default function BehavioralModel({
           <defs>
             <marker
               id={markerId}
-              markerWidth="10"
-              markerHeight="10"
-              refX="8"
-              refY="5"
+              markerWidth="12"
+              markerHeight="12"
+              refX="8.25"
+              refY="4.5"
               orient="auto"
-            >
-              <path d="M0,0 L10,5 L0,10 Z" fill="var(--color-gray-600)" />
-            </marker>
-            <marker
-              id={markerDimId}
-              markerWidth="10"
-              markerHeight="10"
-              refX="8"
-              refY="5"
-              orient="auto"
+              markerUnits="userSpaceOnUse"
+              overflow="visible"
             >
               <path
-                d="M0,0 L10,5 L0,10 Z"
-                fill="var(--color-gray-500)"
-                fillOpacity="0.35"
+                d="M 0.6 1.1 L 8.25 4.5 L 0.6 7.9"
+                fill="none"
+                stroke="var(--color-gray-600)"
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </marker>
+            {/* Same geometry as active marker; branch <g opacity> tints dim paths — no extra path opacity */}
+            <marker
+              id={markerDimId}
+              markerWidth="12"
+              markerHeight="12"
+              refX="8.25"
+              refY="4.5"
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+              overflow="visible"
+            >
+              <path
+                d="M 0.6 1.1 L 8.25 4.5 L 0.6 7.9"
+                fill="none"
+                stroke="var(--color-gray-600)"
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </marker>
           </defs>
@@ -198,7 +224,7 @@ export default function BehavioralModel({
 
           {/* Level 1 branches */}
           {level1Pairs.map((p, i) => {
-            const opacity = p.dim ? 0.3 : 1;
+            const opacity = p.dim ? 0.45 : 1;
             const d = `M ${p.from.x} ${p.from.y} C ${p.from.x + 80} ${p.from.y}, ${p.to.x - 80} ${p.to.y}, ${p.to.x - 10} ${p.to.y}`;
             return (
               <g key={`l1-${i}`} opacity={opacity}>
@@ -209,12 +235,6 @@ export default function BehavioralModel({
                   strokeWidth="5"
                   strokeLinecap="round"
                   markerEnd={`url(#${p.dim ? markerDimId : markerId})`}
-                />
-                <circle
-                  cx={p.to.x}
-                  cy={p.to.y}
-                  r="10"
-                  fill="var(--color-gray-600)"
                 />
                 <text
                   x={POS.level1LabelX}
@@ -231,14 +251,20 @@ export default function BehavioralModel({
 
           {/* Level 2 leaf branches */}
           {leafSpec.map((L, i) => {
-            const opacity = L.dim ? 0.3 : 1;
+            const opacity = L.dim ? 0.45 : 1;
             const c1x = L.from.x + 80;
             const c1y = L.from.y;
             const c2x = POS.leafDotX - 80;
             const c2y = L.leafY;
             const d = `M ${L.from.x} ${L.from.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${POS.leafDotX - 10} ${L.leafY}`;
             const labelX = POS.level2LabelX;
-            const labelY = (L.from.y + L.leafY) / 2 - 10;
+            // Push label outward (away from the curve) rather than sitting on it.
+            // Upward branches → above (−42); downward → below (+42);
+            // straight (centre) → just below the line (+22) so it reads naturally.
+            const dy = L.leafY - L.from.y;
+            const labelY =
+              (L.from.y + L.leafY) / 2 +
+              (Math.abs(dy) <= 20 ? 28 : dy > 0 ? 42 : -42);
             return (
               <g key={`l2-${i}`} opacity={opacity}>
                 <path
@@ -248,12 +274,6 @@ export default function BehavioralModel({
                   strokeWidth="4"
                   strokeLinecap="round"
                   markerEnd={`url(#${L.dim ? markerDimId : markerId})`}
-                />
-                <circle
-                  cx={POS.leafDotX}
-                  cy={L.leafY}
-                  r="8"
-                  fill="var(--color-gray-600)"
                 />
                 <text
                   x={labelX}
@@ -311,16 +331,20 @@ export default function BehavioralModel({
               <Box className="bm-leaf-art-wrap">
                 {L.type === "stall" ? (
                   <Box className="bm-leaf-art">
-                    <Stall id={L.displayId} size="small" />
+                    <Stall id={L.displayId} size="large" />
                   </Box>
                 ) : (
                   <Box className="bm-leaf-art">
-                    <Urinal id={L.displayId} size="small" />
+                    <Urinal id={L.displayId} size="large" />
                   </Box>
                 )}
               </Box>
-              <Box className="bm-leaf-total">
-                {formatModelPercent(leafPercents[L.globalIdx] ?? 0)}
+              <Box className="bm-leaf-usage">
+                <UsagePercentageSquare
+                  percentage={roundModelPercent(
+                    leafPercents[L.globalIdx] ?? 0
+                  )}
+                />
               </Box>
             </Box>
           ))}

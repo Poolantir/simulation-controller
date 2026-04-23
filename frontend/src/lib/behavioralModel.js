@@ -1,26 +1,3 @@
-/**
- * Behavioral-Model probability math.
- *
- * A user's toilet choice is modeled as a two-level probability tree:
- *
- *   Level 1 — group choice:
- *     Stall group:  P(S.P)      (shy pee-er routes to stalls)
- *     Urinal group: 1 - P(S.P)
- *
- *   Level 2 — within-group share, weighted by per-toilet cleanliness T.C:
- *     3-toilet group:  ends (1 - P(M.T.A.F.C))/2 · T.C, middle P(M.T.A.F.C) · T.C
- *     2-toilet group:  50% · T.C each
- *     1-toilet group:  100% · T.C
- *
- * Leaf probabilities are normalized **within each group** so the group's
- * leaves sum to the group's level-1 probability whenever at least one
- * toilet in that group has T.C > 0. When a group has no usable toilet,
- * its leaves are all 0 (no cross-group redistribution here — that is
- * handled at the scheduler layer, out of scope for this visual).
- *
- * For poo users (Case 2): groupProb_stall = 1, groupProb_urinal = 0.
- */
-
 const T_C_BY_CONDITION = {
   Clean: 1.0,
   Fair: 0.75,
@@ -50,18 +27,12 @@ export function shareForGroup(count, middlePct) {
   return Array.from({ length: count }, () => 1 / count);
 }
 
-/** Symbolic label for a within-group share, optionally multiplied by T.C. */
-function shareLabel(count, positionInGroup, showTC) {
-  const tc = showTC ? " · {T.C}" : "";
-  if (count <= 0) return "";
-  if (count === 1) return `{1}${tc}`;
-  if (count === 2) return `{1/2}${tc}`;
-  if (count === 3) {
-    if (positionInGroup === 1) return `{P(M.T.A.F.C)}${tc}`;
-    return `{(1 − P(M.T.A.F.C))/2}${tc}`;
-  }
-  return `{1/${count}}${tc}`;
-}
+/**
+ * Numeric edge label. Every edge now shows its fully-resolved percentage
+ * rather than the symbolic formula placeholder. Level-1 shows the group
+ * probability; Level-2 shows the conditional-within-group probability,
+ * already T.C-weighted and normalized so the group's leaves sum to 1.
+ */
 
 /**
  * Build a behavioral-model tree for rendering.
@@ -70,8 +41,9 @@ function shareLabel(count, positionInGroup, showTC) {
  * @param {{toiletTypes:string[], shyPeerPct:number, middleToiletFirstChoicePct:number}} params.config
  * @param {{stalls:{id:number,condition:string}[], urinals:{id:number,condition:string}[]}} [params.restroomConditions]
  * @param {"pee"|"poo"} [params.userType="pee"]
- * @param {boolean} [params.allClean=false] — Case 1/2 visuals force T.C=1 everywhere.
- * @param {boolean} [params.showToiletClassification=true] — include "· {T.C}" in labels.
+ * @param {boolean} [params.allClean=false] — force T.C=1 everywhere (ignores live conditions).
+ * @param {boolean} [params.showToiletClassification=true] — deprecated no-op. Labels are now
+ *        always fully-resolved numeric percentages (T.C baked in); retained for API stability.
  */
 export function computeBehavioralTree({
   config,
@@ -151,19 +123,26 @@ export function computeBehavioralTree({
         : 0;
   });
 
-  const level1Labels =
-    userType === "poo"
-      ? ["{100%}", "{0%}"]
-      : stallIdx.length === 0 || urinalIdx.length === 0
-      ? ["{100%}", "{0%}"]
-      : ["{P(S.P)}", "{1 − P(S.P)}"];
+  const level1Labels = [
+    formatModelPercent(groupProbStall * 100),
+    formatModelPercent(groupProbUrinal * 100),
+  ];
 
-  const level2StallLabels = stallShares.map((_, j) =>
-    shareLabel(stallIdx.length, j, showToiletClassification)
+  // Level-2 = conditional *within* the group, only when that group is reached (level-1 > 0).
+  const level2StallLabels = stallWeights.map((w) =>
+    formatModelPercent(
+      groupProbStall > 0 && stallSum > 0 ? (w / stallSum) * 100 : 0
+    )
   );
-  const level2UrinalLabels = urinalShares.map((_, j) =>
-    shareLabel(urinalIdx.length, j, showToiletClassification)
+  const level2UrinalLabels = urinalWeights.map((w) =>
+    formatModelPercent(
+      groupProbUrinal > 0 && urinalSum > 0 ? (w / urinalSum) * 100 : 0
+    )
   );
+  // showToiletClassification is retained on the signature for API
+  // compatibility but no longer affects labels: T.C is baked into every
+  // numeric edge value.
+  void showToiletClassification;
 
   return {
     toiletTypes,
@@ -179,9 +158,17 @@ export function computeBehavioralTree({
   };
 }
 
+/** Rounds to 2 decimal places — used by UsagePercentageSquare leaf totals. */
+export function roundModelPercent(value) {
+  if (value == null || !Number.isFinite(value) || value <= 0) return 0;
+  return Math.round(value * 100) / 100;
+}
+
+/** Formats edge-label percentages (1 decimal place, for tree labels). */
 export function formatModelPercent(value) {
-  if (value <= 0) return "0%";
+  if (value == null || !Number.isFinite(value) || value <= 0) return "0%";
   const rounded = Math.round(value * 10) / 10;
   const s = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
   return `${s}%`;
 }
+

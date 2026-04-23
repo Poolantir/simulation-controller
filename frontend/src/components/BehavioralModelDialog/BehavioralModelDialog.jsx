@@ -1,27 +1,57 @@
 import {
   Box,
-  Button,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import BehavioralModel from "../BehavioralModel/BehavioralModel";
 import "./BehavioralModelDialog.css";
 
-/**
- * BehavioralModelDialog
- * Presents three probability-tree visualizations of the next-user toilet
- * choice:
- *   Case 1       — First user is a Pee, all toilets Clean.
- *   Case 2       — First user is a Poo, all toilets Clean.
- *   General Case — uses live per-toilet cleanliness conditions.
- *
- * All three react to simulation configuration (toilet types, shy pee-er %,
- * middle-toilet-as-first-choice %); only the General Case additionally
- * weights by live cleanliness.
- */
+const POSITION_3 = ["Left", "Middle", "Right"];
+const POSITION_2 = ["Left", "Right"];
+
+function toiletTypeLabel(toiletTypes, globalIdx) {
+  const type = String(toiletTypes[globalIdx] ?? "").toLowerCase();
+  if (type !== "stall" && type !== "urinal") return "—";
+  const siblings = toiletTypes
+    .map((t, i) => (String(t).toLowerCase() === type ? i : -1))
+    .filter((i) => i >= 0);
+  const posInGroup = siblings.indexOf(globalIdx);
+  const head = type === "stall" ? "Stall" : "Urinal";
+  if (siblings.length === 3) return `${head} ${POSITION_3[posInGroup]}`;
+  if (siblings.length === 2) return `${head} ${POSITION_2[posInGroup]}`;
+  if (siblings.length === 1) return `${head} Only`;
+  return `${head} ${posInGroup + 1}`;
+}
+
+function toiletCondition(restroomConditions, toiletTypes, globalIdx) {
+  const type = String(toiletTypes[globalIdx] ?? "").toLowerCase();
+  const pool =
+    type === "stall"
+      ? restroomConditions?.stalls
+      : restroomConditions?.urinals;
+  const id = globalIdx + 1;
+  const entry = pool?.find((x) => x.id === id || x.id === String(id));
+  return entry?.condition ?? "Clean";
+}
+
+function formatProbability(pct) {
+  const fraction = pct / 100;
+  const s = Number.isInteger(fraction)
+    ? String(fraction)
+    : fraction.toFixed(2);
+  return `${s} (${pct}%)`;
+}
+
 export default function BehavioralModelDialog({
   open,
   onClose,
@@ -36,101 +66,97 @@ export default function BehavioralModelDialog({
     <Dialog
       open={open}
       onClose={onClose}
+      fullScreen
       scroll="paper"
       aria-labelledby="bm-dialog-title"
       slotProps={{ paper: { className: "bm-dialog-paper" } }}
     >
       <DialogTitle className="bm-dialog-title" id="bm-dialog-title">
         Behavioral Model
+        <IconButton
+          aria-label="close"
+          onClick={onClose}
+          className="bm-dialog-close"
+          size="small"
+        >
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
-      <DialogContent dividers>
-        <Typography className="bm-dialog-intro" component="p">
-          Probability that the next user picks each toilet, derived from the
-          current Simulation Configuration. Case 1 and Case 2 assume an empty
-          restroom with every toilet Clean; the General Case additionally
-          weights each branch by the toilet&apos;s current cleanliness
-          classification (T.C).
-        </Typography>
+      <DialogContent dividers className="bm-dialog-content">
+        <Box className="bm-dialog-summary">
+          <Box className="bm-dialog-params-list">
+            <Typography component="p" className="bm-param-row">
+              <strong>
+                Key:
+              </strong>{" "}
+            </Typography>
+            <Typography component="p" className="bm-param-row">
+              <strong>
+                Probability Shy Pee-er <em>P(S.P)</em>:
+              </strong>{" "}
+              {formatProbability(shy)}
+            </Typography>
+            <Typography component="p" className="bm-param-row">
+              <strong>
+                Probability Middle Toilet as First Choice{" "}
+                <em>P(M.T.A.F.C)</em>:
+              </strong>{" "}
+              {formatProbability(mid)}
+            </Typography>
+            <Typography component="p" className="bm-param-row">
+              <strong>
+                Toilet Classification <em>T.C:</em>
+              </strong>{" "}
+            </Typography>
+          </Box>
 
-        <Box className="bm-dialog-params" component="div">
-          <span>
-            <strong>P(S.P):</strong> {shy}%
-          </span>
-          <span>
-            <strong>P(M.T.A.F.C):</strong> {mid}%
-          </span>
-          <span>
-            <strong>Layout:</strong>{" "}
-            {toiletTypes
-              .map((t, i) => `${i + 1}:${String(t).slice(0, 1).toUpperCase()}`)
-              .join(" · ")}
-          </span>
+          <TableContainer className="bm-dialog-table-wrap">
+            <Table size="small" className="bm-dialog-table">
+              <TableHead>
+                <TableRow>
+                  <TableCell className="bm-th">Toilet #</TableCell>
+                  <TableCell className="bm-th">Toilet Type</TableCell>
+                  <TableCell className="bm-th">Toilet Cleanliness</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {toiletTypes.map((_, idx) => (
+                  <TableRow key={idx} className="bm-tr">
+                    <TableCell className="bm-td">{idx + 1}</TableCell>
+                    <TableCell className="bm-td">
+                      {toiletTypeLabel(toiletTypes, idx)}
+                    </TableCell>
+                    <TableCell className="bm-td">
+                      {toiletCondition(restroomConditions, toiletTypes, idx)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Box>
 
         <Box className="bm-dialog-cases-row">
           <Box className="bm-dialog-case-cell">
             <BehavioralModel
-              title="Case 1"
-              subtitle={"Empty Restroom & First User is a Pee — All Toilets “Clean”"}
+              title="Pee Decision Tree"
               config={simulationConfig}
+              restroomConditions={restroomConditions}
               userType="pee"
-              allClean
-              showToiletClassification={false}
-              size="small"
+              size="large"
             />
           </Box>
           <Box className="bm-dialog-case-cell">
             <BehavioralModel
-              title="Case 2"
-              subtitle={"Empty Restroom & First User is a Poo — All Toilets “Clean”"}
+              title="Poo Decision Tree"
               config={simulationConfig}
+              restroomConditions={restroomConditions}
               userType="poo"
-              allClean
-              showToiletClassification={false}
-              size="small"
+              size="large"
             />
           </Box>
         </Box>
-
-        <Box className="bm-dialog-general">
-          <BehavioralModel
-            title="General Case"
-            subtitle="Taking live toilet classification (T.C) into account"
-            config={simulationConfig}
-            restroomConditions={restroomConditions}
-            userType="pee"
-            showToiletClassification
-            size="large"
-          />
-        </Box>
-
-        <Box className="bm-dialog-key" component="div">
-          <Typography className="bm-dialog-key-title" component="p">
-            Key
-          </Typography>
-          <ul className="bm-dialog-key-list">
-            <li>
-              <strong>S.P</strong> = Shy Pee-er Population
-            </li>
-            <li>
-              <strong>M.T.A.F.C</strong> = Middle Toilet as First Choice
-            </li>
-            <li>
-              <strong>T.C</strong> = Toilet Classification (Clean = 100%, Fair
-              = 75%, Dirty = 50%, Horrendous = 10%, In-Use / Out-of-Order = 0%)
-            </li>
-          </ul>
-          <Typography className="bm-dialog-key-note" component="p">
-            Leaf percentages are normalized within each branch group so the
-            group&apos;s leaves sum to its level-1 probability.
-          </Typography>
-        </Box>
       </DialogContent>
-      <DialogActions className="bm-dialog-actions">
-        <Button type="button" variant="outlined" size="small" onClick={onClose}>
-          Close
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }

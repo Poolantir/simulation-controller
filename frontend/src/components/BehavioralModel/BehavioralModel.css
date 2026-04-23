@@ -4,8 +4,27 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-2);
+  gap: var(--space-1);
   width: 100%;
+}
+
+/* Case title + descriptive label on one row (frees height for the canvas) */
+.bm-heading {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0;
+  flex: 0 0 auto;
+  text-align: center;
+  line-height: var(--line-height-tight);
+}
+
+.bm-heading-sep {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+  user-select: none;
 }
 
 .bm-title {
@@ -13,15 +32,18 @@
   font-weight: var(--font-weight-bold) !important;
   color: var(--color-text);
   margin: 0 !important;
+  flex: 0 1 auto;
   text-align: center;
 }
 
 .bm-subtitle {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
-  margin: 0 0 var(--space-2) 0;
+  margin: 0 !important;
   text-align: center;
   line-height: var(--line-height-tight);
+  flex: 0 1 auto;
+  max-width: 100%;
 }
 
 .bm-canvas {
@@ -73,15 +95,21 @@
   font-size: 1.75rem !important;
 }
 
-/* ---- Leaves ---- */
+/* ---- Leaves ----
+ * Anchor with left+right and flex-end so icon + % tile stay inside the
+ * canvas (a fixed `left` + unconstrained width was overflowing past 100%). */
 .bm-leaf {
   position: absolute;
-  left: 66%;
+  left: 57%;
+  right: var(--space-2);
   transform: translateY(-50%);
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: flex-end;
+  gap: var(--space-2);
   pointer-events: auto;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .bm-leaf--dim {
@@ -90,70 +118,86 @@
 
 .bm-leaf-art-wrap {
   position: relative;
-  /* fixed footprint so 6 rows stack without overflow */
+  /* fixed footprint so 6 rows stack; clip vertical bleed only */
   overflow: hidden;
 }
 
+/* Digital Twin uses `size="large"` fixtures; we scale to fit the row. */
 .bm--large .bm-leaf-art-wrap {
-  width: 4rem;
+  width: 4.75rem;
   height: 4.75rem;
 }
 
 .bm--small .bm-leaf-art-wrap {
-  width: 2.25rem;
+  width: 2.5rem;
   height: 2.65rem;
 }
 
 .bm-leaf-art {
   position: absolute;
   inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
 }
 
-/* Scale the intrinsic stall/urinal artwork into the wrap box. */
+/*
+ * `size="large"` matches StallContainer / UrinalContainer (avoids `stall--small` layout side effects).
+ * Centered origin keeps bowl (left) + wall (right) fully visible in the frame.
+ */
 .bm--large .bm-leaf-art .stall,
 .bm--large .bm-leaf-art .urinal {
-  transform: scale(0.55) translate(-2%, -2%) !important;
-  transform-origin: top left;
+  transform: scale(0.58) !important;
+  transform-origin: center center !important;
+  flex-shrink: 0;
 }
 
 .bm--small .bm-leaf-art .stall,
 .bm--small .bm-leaf-art .urinal {
-  transform: scale(0.3) translate(-4%, -4%) !important;
-  transform-origin: top left;
+  transform: scale(0.32) !important;
+  transform-origin: center center !important;
+  flex-shrink: 0;
 }
 
-/* ---- Total % chip ---- */
-.bm-leaf-total {
-  display: inline-flex;
+/* ---- Total %: same `usage-square` as Digital Twin — ~0.36× twin size (9.0625rem base) ---- */
+.bm-leaf-usage {
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-gray-100);
-  border: var(--border-soft);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font-weight: var(--font-weight-bold);
-  line-height: 1;
-  white-space: nowrap;
 }
 
-.bm--large .bm-leaf-total {
-  min-width: 4rem;
+.bm--large .bm-leaf-usage .usage-square {
+  width: 3.25rem;
+  min-width: 3.25rem;
+  height: 3.25rem;
+  box-sizing: border-box;
+  border-radius: var(--radius-md);
+}
+
+.bm--large .bm-leaf-usage .usage-square-text {
+  font-size: var(--font-size-xs) !important;
+  line-height: 1.1 !important;
+}
+
+.bm--small .bm-leaf-usage .usage-square {
+  width: 2rem;
+  min-width: 2rem;
   height: 2rem;
-  font-size: var(--font-size-sm);
-  padding: 0 var(--space-3);
+  box-sizing: border-box;
+  border-radius: var(--radius-md);
 }
 
-.bm--small .bm-leaf-total {
-  min-width: 2.5rem;
-  height: 1.25rem;
-  font-size: var(--font-size-xs);
-  padding: 0 var(--space-2);
+.bm--small .bm-leaf-usage .usage-square-text {
+  font-size: var(--font-size-sm) !important;
+  line-height: 1.1 !important;
 }
 
 /* ---- SVG text labels ---- */
 .bm-edge-label {
   fill: var(--color-text);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-regular);
   font-family: inherit;
   dominant-baseline: middle;
 }
