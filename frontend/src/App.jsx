@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CssBaseline, ThemeProvider, createTheme, Box } from "@mui/material";
 import Header from "./components/Header/Header";
 import Sidebar from "./components/Sidebar/Sidebar";
 import SimulationDigitalTwin from "./components/SimulationDigitalTwin/SimulationDigitalTwin";
-import TestConnectionsDialog from "./components/TestConnectionsDialog/TestConnectionsDialog";
+import TestConnectionsPanel from "./components/TestConnectionsPanel/TestConnectionsPanel";
 import BehavioralModelDialog from "./components/BehavioralModelDialog/BehavioralModelDialog";
 import {
   DEFAULT_RESTROOM_PRESET,
@@ -13,6 +13,13 @@ import {
   bumpCondition,
   NON_EXISTENT_CONDITION,
 } from "./lib/cleanliness";
+import {
+  connectNode,
+  disconnectNode,
+  emptyConnections,
+  openNodeStatusStream,
+  sendToNode,
+} from "./lib/nodesApi";
 
 const theme = createTheme({
   palette: {
@@ -24,6 +31,9 @@ const theme = createTheme({
 
 const INITIAL_ELAPSED_TIME_TEXT = "Simulation Time Elapsed: 0min";
 const INITIAL_SATISFIED_USERS = 0;
+const NODE_COUNT = 6;
+const APP_MODE_SIM = "SIM";
+const APP_MODE_TEST = "TEST";
 
 /**
  * Build a clean restroom-conditions / fixture state from a preset.
@@ -72,8 +82,29 @@ export default function App() {
     INITIAL_ELAPSED_TIME_TEXT
   );
   const [satisfiedUsers, setSatisfiedUsers] = useState(INITIAL_SATISFIED_USERS);
-  const [testConnectionsOpen, setTestConnectionsOpen] = useState(false);
+  const [appMode, setAppMode] = useState(APP_MODE_SIM);
   const [behavioralModelOpen, setBehavioralModelOpen] = useState(false);
+  const [nodeConnections, setNodeConnections] = useState(() =>
+    emptyConnections()
+  );
+
+  useEffect(() => {
+    const close = openNodeStatusStream(
+      (next) => setNodeConnections(next),
+      (evt) => {
+        const stamp = new Date().toLocaleString();
+        const body =
+          evt && evt.payload && typeof evt.payload === "object"
+            ? JSON.stringify(evt.payload)
+            : evt?.raw ?? "";
+        setLogs((prev) => [
+          ...prev,
+          `[Node ${evt?.node_id ?? "?"}] <- ${body} - ${stamp}`,
+        ]);
+      }
+    );
+    return close;
+  }, []);
 
   const toiletTypes = useMemo(
     () => toiletTypesForPreset(simulationConfig.restroomPreset),
@@ -209,8 +240,60 @@ export default function App() {
     setLogs((prev) => [...prev, line]);
   };
 
-  const handleTestConnections = () => {
-    setTestConnectionsOpen(true);
+  /**
+   * Dispatch a Test Bench command to a single node via the backend.
+   * Logs the outgoing payload immediately, then appends an ACK/ERR line
+   * once the HTTP round-trip completes.
+   */
+  const handleTestSend = useCallback(async (id, payload) => {
+    const stamp = new Date().toLocaleString();
+    const payloadText = JSON.stringify(payload);
+    setLogs((prev) => [...prev, `[Node ${id}] -> ${payloadText} - ${stamp}`]);
+    const result = await sendToNode(id, payload);
+    const resultStamp = new Date().toLocaleString();
+    const line = result.ok
+      ? `[Node ${id}] <- ACK - ${resultStamp}`
+      : `[Node ${id}] <- ERR ${result.error || "unknown"} - ${resultStamp}`;
+    setLogs((prev) => [...prev, line]);
+  }, []);
+
+  const handleNodeConnect = useCallback(async (id) => {
+    const stamp = new Date().toLocaleString();
+    setLogs((prev) => [...prev, `[Node ${id}] -> CONNECT - ${stamp}`]);
+    const result = await connectNode(id);
+    const resultStamp = new Date().toLocaleString();
+    const line = result.ok
+      ? `[Node ${id}] <- CONNECTED - ${resultStamp}`
+      : `[Node ${id}] <- CONNECT FAILED ${result.error || "unknown"} - ${resultStamp}`;
+    setLogs((prev) => [...prev, line]);
+  }, []);
+
+  const handleNodeDisconnect = useCallback(async (id) => {
+    const stamp = new Date().toLocaleString();
+    setLogs((prev) => [...prev, `[Node ${id}] -> DISCONNECT - ${stamp}`]);
+    const result = await disconnectNode(id);
+    const resultStamp = new Date().toLocaleString();
+    const line = result.ok
+      ? `[Node ${id}] <- DISCONNECTED - ${resultStamp}`
+      : `[Node ${id}] <- DISCONNECT FAILED ${result.error || "unknown"} - ${resultStamp}`;
+    setLogs((prev) => [...prev, line]);
+  }, []);
+
+  /**
+   * Switch the app-wide mode between SIM and TEST. On an actual change,
+   * broadcast `{command:"MODE", type:"SET", action:<TEST|SIM>}` to every
+   * currently-connected node. Disconnected nodes are skipped (the server
+   * returns 502 otherwise) and each outcome is logged.
+   */
+  const handleAppModeChange = (next) => {
+    if (next !== APP_MODE_SIM && next !== APP_MODE_TEST) return;
+    if (next === appMode) return;
+    setAppMode(next);
+    const payload = { command: "MODE", type: "SET", action: next };
+    for (let i = 0; i < NODE_COUNT; i += 1) {
+      if (!nodeConnections[i]) continue;
+      handleTestSend(i + 1, payload);
+    }
   };
 
   const handleViewBehavioralModel = () => {
@@ -235,18 +318,14 @@ export default function App() {
         <Header
           onViewBehavioralModel={handleViewBehavioralModel}
           onResetSimulation={handleResetSimulation}
-          onTestConnections={handleTestConnections}
+          appMode={appMode}
+          onAppModeChange={handleAppModeChange}
         />
         <BehavioralModelDialog
           open={behavioralModelOpen}
           onClose={() => setBehavioralModelOpen(false)}
           simulationConfig={simulationConfig}
           restroomConditions={restroomConditions}
-        />
-        <TestConnectionsDialog
-          open={testConnectionsOpen}
-          onClose={() => setTestConnectionsOpen(false)}
-          onAppendLog={handleAppendLogLine}
         />
         <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
           <Sidebar
@@ -261,17 +340,27 @@ export default function App() {
             onDecreaseCleanlinessAll={handleDecreaseCleanlinessAll}
             onSendMaintenance={handleSendMaintenance}
           />
-          <SimulationDigitalTwin
-            elapsedTimeText={elapsedTimeText}
-            satisfiedUsers={satisfiedUsers}
-            queue={queue}
-            toiletTypes={toiletTypes}
-            stalls={stalls}
-            urinals={urinals}
-            onAddPee={handleAddPee}
-            onAddPoo={handleAddPoo}
-            onClearQueue={handleClearQueue}
-          />
+          {appMode === APP_MODE_SIM ? (
+            <SimulationDigitalTwin
+              elapsedTimeText={elapsedTimeText}
+              satisfiedUsers={satisfiedUsers}
+              queue={queue}
+              toiletTypes={toiletTypes}
+              stalls={stalls}
+              urinals={urinals}
+              nodeConnections={nodeConnections}
+              onAddPee={handleAddPee}
+              onAddPoo={handleAddPoo}
+              onClearQueue={handleClearQueue}
+            />
+          ) : (
+            <TestConnectionsPanel
+              nodeConnections={nodeConnections}
+              onSend={handleTestSend}
+              onConnect={handleNodeConnect}
+              onDisconnect={handleNodeDisconnect}
+            />
+          )}
         </Box>
       </Box>
     </ThemeProvider>

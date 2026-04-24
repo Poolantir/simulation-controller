@@ -60,3 +60,19 @@
 .header-action-btn:focus-visible {
   border-color: var(--color-gray-600) !important;
 }
+
+.header-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: var(--border-soft);
+}
+
+.header-mode-btn.header-mode-btn--active,
+.header-mode-btn.header-mode-btn--active:hover {
+  background-color: var(--color-gray-700) !important;
+  color: var(--color-gray-100) !important;
+  border-color: var(--color-gray-700) !important;
+}

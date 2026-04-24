@@ -4,8 +4,12 @@ import "./Header.css";
 export default function Header({
   onViewBehavioralModel,
   onResetSimulation,
-  onTestConnections,
+  appMode,
+  onAppModeChange,
 }) {
+  const isSim = appMode === "SIM";
+  const isTest = appMode === "TEST";
+
   return (
     <Box className="header" component="header">
       <img
@@ -32,15 +36,32 @@ export default function Header({
         >
           Reset Simulation
         </Button>
-        <Button
-          type="button"
-          className="header-action-btn"
-          variant="outlined"
-          size="small"
-          onClick={onTestConnections}
-        >
-          Test Connections
-        </Button>
+        <Box className="header-mode-group" role="group" aria-label="App mode">
+          <Button
+            type="button"
+            className={`header-action-btn header-mode-btn${
+              isSim ? " header-mode-btn--active" : ""
+            }`}
+            variant={isSim ? "contained" : "outlined"}
+            size="small"
+            aria-pressed={isSim}
+            onClick={() => onAppModeChange("SIM")}
+          >
+            Sim Mode
+          </Button>
+          <Button
+            type="button"
+            className={`header-action-btn header-mode-btn${
+              isTest ? " header-mode-btn--active" : ""
+            }`}
+            variant={isTest ? "contained" : "outlined"}
+            size="small"
+            aria-pressed={isTest}
+            onClick={() => onAppModeChange("TEST")}
+          >
+            Test Mode
+          </Button>
+        </Box>
       </Box>
     </Box>
   );

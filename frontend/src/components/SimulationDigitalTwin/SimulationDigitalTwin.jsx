@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Box } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import Queue from "../Queue/Queue";
 import SimulationElapsedTime from "../SimulationElapsedTime/SimulationElapsedTime";
 import StallContainer from "../StallContainer/StallContainer";
@@ -40,11 +40,13 @@ export default function SimulationDigitalTwin({
   toiletTypes,
   stalls,
   urinals,
+  nodeConnections,
   onAddPee,
   onAddPoo,
   onClearQueue,
 }) {
   const rows = buildTwinRows(toiletTypes, stalls, urinals);
+  const connections = Array.isArray(nodeConnections) ? nodeConnections : [];
 
   return (
     <Box className="digital-twin">
@@ -67,6 +69,8 @@ export default function SimulationDigitalTwin({
               const isStall = row.kind === "stall";
               const isUrinal = row.kind === "urinal";
               const isNonexistent = row.kind === "nonexistent";
+              const isDisconnected =
+                !isNonexistent && connections[row.id - 1] === false;
               const stallOccupied =
                 isStall && !row.outOfOrder && (row.usagePct ?? 0) > 0;
               const urinalOccupied =
@@ -85,6 +89,18 @@ export default function SimulationDigitalTwin({
                         className="toilet-column-nonexistent"
                         aria-label={`Toilet ${row.id} non-existent`}
                       />
+                    ) : isDisconnected ? (
+                      <Box
+                        className="toilet-column-disconnected"
+                        aria-label={`Node ${row.id} disconnected`}
+                      >
+                        <Typography
+                          className="toilet-column-disconnected__label"
+                          component="span"
+                        >
+                          Node Disconnected
+                        </Typography>
+                      </Box>
                     ) : isStall ? (
                       <StallContainer
                         id={row.id}

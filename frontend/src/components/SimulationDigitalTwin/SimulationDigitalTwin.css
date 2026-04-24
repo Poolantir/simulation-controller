@@ -97,6 +97,27 @@
   border: none;
 }
 
+/* Disconnected slot: same footprint as a real fixture, but shows a label. */
+.toilet-column-disconnected {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+}
+
+.toilet-column-disconnected__label {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: clamp(1rem, 2.4vmin, 1.75rem) !important;
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 /* Square % tile (not stretched to row height); centered in tall rows */
 .toilet-column .usage-square {
   width: 9.0625rem;

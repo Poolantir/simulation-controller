@@ -1,0 +1,204 @@
+@import "../../styles.css";
+
+.test-connections-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: var(--space-5);
+  padding: var(--space-5);
+  gap: var(--space-4);
+  box-sizing: border-box;
+  overflow: auto;
+  background: var(--color-surface);
+  border: var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.test-connections-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.test-connections-panel__title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-lg) !important;
+  color: var(--color-text);
+  margin: 0 !important;
+}
+
+.test-connections-panel__hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.test-connections-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .test-connections-panel__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .test-connections-panel__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.node-test-card {
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.node-test-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: var(--border-soft);
+}
+
+.node-test-card__title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-md) !important;
+  color: var(--color-text);
+}
+
+.node-test-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.node-test-card__status-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: currentColor;
+  box-shadow: 0 0 0 0.125rem color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.node-test-card__status--on {
+  color: var(--color-success);
+}
+
+.node-test-card__status--off {
+  color: var(--color-text-muted);
+}
+
+.node-test-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.node-test-card__bench {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.node-test-card__label {
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text);
+}
+
+.node-test-card__row-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.node-test-card__btn {
+  border-radius: var(--radius-button) !important;
+  text-transform: none !important;
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+  min-width: 3rem;
+  flex: 1 1 auto;
+  padding-top: 0.28rem !important;
+  padding-bottom: 0.28rem !important;
+  line-height: 1.1 !important;
+}
+
+.node-test-card__btn--primary {
+  background-color: var(--color-gray-100) !important;
+  color: var(--color-gray-700) !important;
+  border-color: var(--color-gray-500) !important;
+}
+
+.node-test-card__btn--primary:hover {
+  background-color: var(--color-gray-200) !important;
+  border-color: var(--color-gray-600) !important;
+}
+
+.node-test-card__btn--primary.Mui-disabled {
+  background-color: var(--color-gray-400) !important;
+  border-color: var(--color-gray-500) !important;
+  color: var(--color-gray-700) !important;
+}
+
+.node-test-card__echo-row .MuiOutlinedInput-root.Mui-disabled {
+  background-color: var(--color-gray-400);
+}
+
+.node-test-card__echo-row
+  .MuiOutlinedInput-root.Mui-disabled
+  .MuiOutlinedInput-notchedOutline {
+  border-color: var(--color-gray-500);
+}
+
+.node-test-card__echo-row .MuiOutlinedInput-input.Mui-disabled {
+  color: var(--color-gray-700);
+  -webkit-text-fill-color: var(--color-gray-700);
+}
+
+.node-test-card__btn--wide {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.node-test-card__echo-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.node-test-card__echo-row .MuiTextField-root {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.node-test-card__echo-row .node-test-card__btn {
+  flex: 0 0 auto;
+  min-width: 3.75rem;
+  min-height: 40px;
+}
