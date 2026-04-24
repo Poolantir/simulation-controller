@@ -83,8 +83,8 @@ const INITIAL_SIM_CONFIG = {
 };
 
 const EMPTY_DUMMY_FIXTURES = {
-  stalls: [1, 2, 3].map((id) => ({ id, usagePct: 0, outOfOrder: false })),
-  urinals: [4, 5, 6].map((id) => ({ id, usagePct: 0, outOfOrder: false })),
+  stalls: [1, 2, 3].map((id) => ({ id, usagePct: 0, outOfOrder: false, useCount: 0 })),
+  urinals: [4, 5, 6].map((id) => ({ id, usagePct: 0, outOfOrder: false, useCount: 0 })),
 };
 
 let nextQueueId = 1;
@@ -127,6 +127,11 @@ export default function App() {
   const [dummyExitedUsers, setDummyExitedUsers] = useState(0);
   const [dummyTotalArrivals, setDummyTotalArrivals] = useState(0);
   const [dummySimTimeMs, setDummySimTimeMs] = useState(0);
+  // Dummy-mode sim clock: backend sends authoritative `sim_time_s` on
+  // SSE; between snapshots we advance display from wall time so
+  // Elapsed Time ticks every second while running (not only on events).
+  const dummySimTimeBaseMsRef = useRef(0);
+  const dummySimTimeWallAtBaseRef = useRef(0);
   // Active queue -> toilet preview animations (3 s each). Keyed by
   // (queueItemId, fixtureId) so a fixture can only host one preview.
   // Hydrated from the SSE stream's `assignment_preview` events and
@@ -197,6 +202,25 @@ export default function App() {
     const id = setInterval(() => {
       setSimElapsedMs((ms) => ms + 100);
     }, 100);
+    return () => clearInterval(id);
+  }, [appMode, simulationStatus]);
+
+  useEffect(() => {
+    if (appMode !== APP_MODE_DUMMY || simulationStatus !== "running")
+      return undefined;
+    // Re-anchor: after pause, wall clock gap must not add to sim time.
+    // Also fixes first play before first SSE (refs were 0,0).
+    setDummySimTimeMs((t) => {
+      dummySimTimeBaseMsRef.current = t;
+      dummySimTimeWallAtBaseRef.current = Date.now();
+      return t;
+    });
+    const tick = () => {
+      const base = dummySimTimeBaseMsRef.current;
+      const wall = dummySimTimeWallAtBaseRef.current;
+      setDummySimTimeMs(base + (Date.now() - wall));
+    };
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [appMode, simulationStatus]);
 
@@ -285,7 +309,10 @@ export default function App() {
         Number.isFinite(mapped.totalArrivals) ? mapped.totalArrivals : 0
       );
       if (Number.isFinite(mapped.simTimeS)) {
-        setDummySimTimeMs(mapped.simTimeS * 1000);
+        const simMs = mapped.simTimeS * 1000;
+        dummySimTimeBaseMsRef.current = simMs;
+        dummySimTimeWallAtBaseRef.current = Date.now();
+        setDummySimTimeMs(simMs);
       }
       // NOTE: we intentionally do NOT mirror `mapped.runtime` into
       // `simulationStatus`. The Play/Pause button is the source of
@@ -679,6 +706,8 @@ export default function App() {
     setSatisfiedUsers(INITIAL_SATISFIED_USERS);
     setDummyExitedUsers(0);
     setDummyTotalArrivals(0);
+    dummySimTimeBaseMsRef.current = 0;
+    dummySimTimeWallAtBaseRef.current = Date.now();
     setDummySimTimeMs(0);
     setActiveFixtureUsers({});
     setPendingTransfers([]);

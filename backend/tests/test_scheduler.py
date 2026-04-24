@@ -434,6 +434,44 @@ class SchedulerLifecycleTests(unittest.TestCase):
         self.assertGreaterEqual(snap_after["sim_time_s"], sim_before)
         self.assertLess(snap_after["sim_time_s"], sim_before + 0.3)
 
+    def test_use_count_increments_on_completion_and_resets(self):
+        """Completing an occupancy must increment the per-fixture
+        `use_count`; reset() and a stop->running cycle must zero it."""
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_completed" for ev, _ in self.events
+                ),
+                timeout=2.0,
+            )
+        )
+        snap = self.sched.snapshot()
+        totals = [f["use_count"] for f in snap["fixtures"]]
+        self.assertEqual(sum(totals), 1)
+        self.assertEqual(max(totals), 1)
+
+        self.sched.reset()
+        snap = self.sched.snapshot()
+        self.assertTrue(all(f["use_count"] == 0 for f in snap["fixtures"]))
+
+        # Stop -> running must also leave use_count zeroed.
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    f["use_count"] for f in self.sched.snapshot()["fixtures"]
+                )
+                >= 1,
+                timeout=2.0,
+            )
+        )
+        self.sched.set_sim_runtime(RUNTIME_STOPPED)
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        snap = self.sched.snapshot()
+        self.assertTrue(all(f["use_count"] == 0 for f in snap["fixtures"]))
+
     def test_reset_while_running_clears_state_and_pauses(self):
         """Reset mid-run must clear queue/fixtures/counters, zero
         sim_time, and leave runtime in PAUSED so the next Play starts

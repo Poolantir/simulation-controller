@@ -173,6 +173,14 @@ export function openSchedulerStream(onEvent) {
  * App/DigitalTwin already consumes. Returns `null` on a clearly-invalid
  * snapshot so callers can fall back to their local state.
  */
+// Backend serializes unset numeric fields as JSON `null`; `Number(null)` is
+// 0 (finite), which would make paused-state checks think an absolute
+// deadline is present. Coerce null/undefined to NaN so `Number.isFinite`
+// correctly reports "no value" for those fields.
+function numOrNaN(v) {
+  return v == null ? NaN : Number(v);
+}
+
 export function schedulerSnapshotToFrontendState(snap) {
   if (!snap || typeof snap !== "object") return null;
   const fixtures = Array.isArray(snap.fixtures) ? snap.fixtures : [];
@@ -181,7 +189,7 @@ export function schedulerSnapshotToFrontendState(snap) {
   const urinals = [];
   const pendingTransfers = [];
   const activeFixtureUsers = {};
-  const nowServer = Number(snap.now);
+  const nowServer = numOrNaN(snap.now);
   // Server -> client clock skew. The server emits `busy_until` in
   // its own wall-clock; convert to the client's `Date.now()` frame so
   // the countdown component can just do `deadline - Date.now()`.
@@ -194,22 +202,24 @@ export function schedulerSnapshotToFrontendState(snap) {
     const inUse = Boolean(f?.in_use);
     const usagePct = inUse ? 100 : 0;
     const outOfOrder = f?.condition === "Out-of-Order";
+    const useCountRaw = numOrNaN(f?.use_count);
+    const useCount = Number.isFinite(useCountRaw) ? useCountRaw : 0;
     if (kind === "stall") {
-      stalls.push({ id, usagePct, outOfOrder });
+      stalls.push({ id, usagePct, outOfOrder, useCount });
     } else if (kind === "urinal") {
-      urinals.push({ id, usagePct, outOfOrder });
+      urinals.push({ id, usagePct, outOfOrder, useCount });
     } else {
       // Non-existent fixtures still need an entry so DigitalTwin's
       // id-indexed lookup keeps working; mark them zeroed.
-      if (id <= 3) stalls.push({ id, usagePct: 0, outOfOrder: false });
-      else urinals.push({ id, usagePct: 0, outOfOrder: false });
+      if (id <= 3) stalls.push({ id, usagePct: 0, outOfOrder: false, useCount: 0 });
+      else urinals.push({ id, usagePct: 0, outOfOrder: false, useCount: 0 });
     }
 
     if (inUse) {
-      const busyUntilServer = Number(f?.busy_until);
-      const qid = Number(f?.current_queue_item_id);
-      const durationS = Number(f?.current_duration_s);
-      const occR = Number(f?.occupancy_remaining_s);
+      const busyUntilServer = numOrNaN(f?.busy_until);
+      const qid = numOrNaN(f?.current_queue_item_id);
+      const durationS = numOrNaN(f?.current_duration_s);
+      const occR = numOrNaN(f?.occupancy_remaining_s);
       let busyUntilMs = null;
       if (Number.isFinite(busyUntilServer)) {
         busyUntilMs = busyUntilServer * 1000 + skewMs;
@@ -231,11 +241,11 @@ export function schedulerSnapshotToFrontendState(snap) {
     }
 
     if (f?.reserved) {
-      const qid = Number(f?.reserved_queue_item_id);
-      const reservedUntil = Number(f?.reserved_until);
-      const prPrev = Number(f?.preview_remaining_s);
-      const reservedDurationS = Number(f?.reserved_duration_s);
-      const pss = Number(f?.preview_started_sim_s);
+      const qid = numOrNaN(f?.reserved_queue_item_id);
+      const reservedUntil = numOrNaN(f?.reserved_until);
+      const prPrev = numOrNaN(f?.preview_remaining_s);
+      const reservedDurationS = numOrNaN(f?.reserved_duration_s);
+      const pss = numOrNaN(f?.preview_started_sim_s);
       // Convert "reservation ends at server-now offset" into the
       // remaining animation budget on the client. Fall back to 3s
       // so a slightly stale snapshot still produces a visible arrow.
@@ -261,8 +271,8 @@ export function schedulerSnapshotToFrontendState(snap) {
 
   const queue = Array.isArray(snap.queue)
     ? snap.queue.map((q) => {
-        const durationS = Number(q?.duration_s);
-        const enqueuedAtSimS = Number(q?.enqueued_at_sim_s);
+        const durationS = numOrNaN(q?.duration_s);
+        const enqueuedAtSimS = numOrNaN(q?.enqueued_at_sim_s);
         return {
           id: Number(q.id),
           type: String(q.type),

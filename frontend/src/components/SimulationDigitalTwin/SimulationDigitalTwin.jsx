@@ -16,6 +16,7 @@ function mergeFixtureState(id, stalls, urinals) {
   return {
     usagePct: src.usagePct ?? 0,
     outOfOrder: src.outOfOrder ?? false,
+    useCount: src.useCount ?? 0,
   };
 }
 
@@ -29,8 +30,12 @@ function buildTwinRows(toiletTypes, stalls, urinals) {
     if (raw === "nonexistent") kind = "nonexistent";
     else if (raw === "stall") kind = "stall";
     else kind = "urinal";
-    const { usagePct, outOfOrder } = mergeFixtureState(id, stalls, urinals);
-    return { id, kind, usagePct, outOfOrder };
+    const { usagePct, outOfOrder, useCount } = mergeFixtureState(
+      id,
+      stalls,
+      urinals
+    );
+    return { id, kind, usagePct, outOfOrder, useCount };
   });
 }
 
@@ -55,6 +60,10 @@ export default function SimulationDigitalTwin({
   onClearQueue,
 }) {
   const rows = buildTwinRows(toiletTypes, stalls, urinals);
+  // Share-of-total-uses denominator: all completed occupancies across
+  // every fixture (stalls + urinals, regardless of kind). A fixture's
+  // "Percent Used" is its own useCount / totalUses.
+  const totalUses = rows.reduce((sum, r) => sum + (r.useCount ?? 0), 0);
   const connections = Array.isArray(nodeConnections) ? nodeConnections : [];
   const twinRef = useRef(null);
   const safeTransfers = Array.isArray(pendingTransfers) ? pendingTransfers : [];
@@ -157,6 +166,8 @@ export default function SimulationDigitalTwin({
                           outOfOrder={row.outOfOrder || false}
                           fillColor={stallFillColor}
                           activeUser={stallUser}
+                          useCount={row.useCount}
+                          totalUses={totalUses}
                         />
                       ) : (
                         <UrinalContainer
@@ -164,6 +175,8 @@ export default function SimulationDigitalTwin({
                           usagePct={row.usagePct}
                           fillColor={urinalFillColor}
                           activeUser={urinalUser}
+                          useCount={row.useCount}
+                          totalUses={totalUses}
                         />
                       )}
                     </Box>

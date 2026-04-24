@@ -59,8 +59,13 @@
   --fixture-scale-x: 0.80;
   --fixture-scale-y: 0.80;
   --pct-square-max: clamp(5rem, 12vmin, 10rem);
-  --fixture-fill-size: clamp(2.1rem, 5vmin, 3.6rem);
-  --fixture-label-font: clamp(0.7rem, 1.8vmin, var(--font-size-md));
+  /*
+   * User tile inside fixture: decoupled from toilet scale. Match
+   * queue tile (.queue-block = 4.375rem / 70px) so in-use user icon
+   * reads as the same user that left the queue.
+   */
+  --fixture-fill-size: 4.375rem;
+  --fixture-label-font: var(--font-size-md);
   display: flex;
   flex-direction: column;
   align-items: stretch;

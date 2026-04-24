@@ -129,6 +129,12 @@ class Fixture:
     # remaining seconds so real time does not elapse while paused.
     occupancy_remaining_s: Optional[float] = None
     preview_remaining_s: Optional[float] = None
+    # Monotonic counter of completed occupancies for this fixture,
+    # incremented in `_release_completed`. Drives the per-fixture "Total
+    # Uses" / share-of-total-uses display in the digital twin. Reset
+    # alongside other in-flight fixture state (mode switch / stop /
+    # reset).
+    use_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -148,6 +154,7 @@ class Fixture:
             "preview_started_sim_s": self.preview_started_sim_s,
             "occupancy_remaining_s": self.occupancy_remaining_s,
             "preview_remaining_s": self.preview_remaining_s,
+            "use_count": self.use_count,
         }
 
 
@@ -527,6 +534,7 @@ class Scheduler:
             f.preview_started_sim_s = None
             f.occupancy_remaining_s = None
             f.preview_remaining_s = None
+            f.use_count = 0
 
     def _cancel_reservations_locked(
         self,
@@ -743,6 +751,7 @@ class Scheduler:
                     fixture.current_user_type = None
                     fixture.current_queue_item_id = None
                     fixture.current_duration_s = None
+                    fixture.use_count += 1
                     self._satisfied_users += 1
                     released.append(
                         {

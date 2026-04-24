@@ -10,6 +10,8 @@ export default function StallContainer({
   outOfOrder = false,
   fillColor = "pee",
   activeUser = null,
+  useCount = 0,
+  totalUses = 0,
 }) {
   if (outOfOrder) {
     return (
@@ -23,7 +25,7 @@ export default function StallContainer({
             <Stall id={id} size="large" />
           </Box>
         </Box>
-        <UsagePercentageSquare percentage={usagePct} />
+        <UsagePercentageSquare useCount={useCount} totalUses={totalUses} />
       </Box>
     );
   }
@@ -43,7 +45,7 @@ export default function StallContainer({
           <Stall id={id} size="large" />
         </Box>
       </Box>
-      <UsagePercentageSquare percentage={usagePct} />
+      <UsagePercentageSquare useCount={useCount} totalUses={totalUses} />
     </Box>
   );
 }

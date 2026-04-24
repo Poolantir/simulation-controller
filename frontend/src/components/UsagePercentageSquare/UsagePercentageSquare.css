@@ -7,13 +7,30 @@
   background-color: var(--color-gray-100);
   border-radius: var(--radius-md);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  box-sizing: border-box;
   flex-shrink: 0;
   color: var(--color-text);
+  text-align: center;
 }
 
-.usage-square-text {
-  font-size: var(--font-size-2xl) !important;
-  font-weight: var(--font-weight-bold) !important;
+.usage-square-row {
+  font-size: var(--font-size-md) !important;
+  font-weight: var(--font-weight-regular) !important;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  display: block;
+}
+
+.usage-square-label {
+  font-weight: var(--font-weight-regular);
+  opacity: 0.8;
+}
+
+.usage-square-value {
+  font-weight: var(--font-weight-bold);
 }

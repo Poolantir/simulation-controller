@@ -9,6 +9,8 @@ export default function UrinalContainer({
   usagePct,
   fillColor = "pee",
   activeUser = null,
+  useCount = 0,
+  totalUses = 0,
 }) {
   return (
     <Box className="urinal-container">
@@ -25,7 +27,7 @@ export default function UrinalContainer({
           <Urinal id={id} size="large" />
         </Box>
       </Box>
-      <UsagePercentageSquare percentage={usagePct} />
+      <UsagePercentageSquare useCount={useCount} totalUses={totalUses} />
     </Box>
   );
 }
