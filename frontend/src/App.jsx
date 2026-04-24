@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CssBaseline, ThemeProvider, createTheme, Box } from "@mui/material";
 import Header from "./components/Header/Header";
 import Sidebar from "./components/Sidebar/Sidebar";
@@ -20,6 +20,15 @@ import {
   openNodeStatusStream,
   sendToNode,
 } from "./lib/nodesApi";
+import {
+  clearSchedulerQueue,
+  enqueueUser,
+  openSchedulerStream,
+  resetScheduler,
+  schedulerSnapshotToFrontendState,
+  setSchedulerMode,
+  updateSchedulerConfig,
+} from "./lib/schedulerApi";
 
 const theme = createTheme({
   palette: {
@@ -31,9 +40,11 @@ const theme = createTheme({
 
 const INITIAL_ELAPSED_TIME_TEXT = "Simulation Time Elapsed: 0min";
 const INITIAL_SATISFIED_USERS = 0;
+const INITIAL_USERS_ENTERED = 0;
 const NODE_COUNT = 6;
 const APP_MODE_SIM = "SIM";
 const APP_MODE_TEST = "TEST";
+const APP_MODE_DUMMY = "DUMMY";
 
 /**
  * Build a clean restroom-conditions / fixture state from a preset.
@@ -60,6 +71,11 @@ const INITIAL_SIM_CONFIG = {
   middleToiletFirstChoicePct: 2,
 };
 
+const EMPTY_DUMMY_FIXTURES = {
+  stalls: [1, 2, 3].map((id) => ({ id, usagePct: 0, outOfOrder: false })),
+  urinals: [4, 5, 6].map((id) => ({ id, usagePct: 0, outOfOrder: false })),
+};
+
 let nextQueueId = 1;
 
 export default function App() {
@@ -82,11 +98,30 @@ export default function App() {
     INITIAL_ELAPSED_TIME_TEXT
   );
   const [satisfiedUsers, setSatisfiedUsers] = useState(INITIAL_SATISFIED_USERS);
+  const [simUsersEntered, setSimUsersEntered] = useState(INITIAL_USERS_ENTERED);
   const [appMode, setAppMode] = useState(APP_MODE_SIM);
   const [behavioralModelOpen, setBehavioralModelOpen] = useState(false);
   const [nodeConnections, setNodeConnections] = useState(() =>
     emptyConnections()
   );
+
+  // Backend Dummy Mode state — hydrated from the scheduler SSE stream.
+  // Separate from local sim state so switching modes doesn't clobber
+  // either side.
+  const [dummyQueue, setDummyQueue] = useState([]);
+  const [dummyStalls, setDummyStalls] = useState(EMPTY_DUMMY_FIXTURES.stalls);
+  const [dummyUrinals, setDummyUrinals] = useState(
+    EMPTY_DUMMY_FIXTURES.urinals
+  );
+  const [dummySatisfiedUsers, setDummySatisfiedUsers] = useState(0);
+  const [dummyUsersEntered, setDummyUsersEntered] = useState(0);
+
+  // Keep a ref of current appMode for async callbacks that mustn't
+  // capture a stale value (SSE handlers and log emitters).
+  const appModeRef = useRef(appMode);
+  useEffect(() => {
+    appModeRef.current = appMode;
+  }, [appMode]);
 
   useEffect(() => {
     const close = openNodeStatusStream(
@@ -106,10 +141,115 @@ export default function App() {
     return close;
   }, []);
 
+  // Subscribe to the scheduler SSE stream so the digital twin reflects
+  // live queue/occupancy in Dummy Mode. We stay subscribed regardless
+  // of mode so the UI can hydrate the moment the user switches to
+  // Dummy, but we only render dummy state in render when active.
+  useEffect(() => {
+    const applySnapshot = (snap) => {
+      const mapped = schedulerSnapshotToFrontendState(snap);
+      if (!mapped) return;
+      setDummyQueue(mapped.queue);
+      setDummyStalls(mapped.stalls);
+      setDummyUrinals(mapped.urinals);
+      setDummySatisfiedUsers(mapped.satisfiedUsers);
+      const active = [...mapped.stalls, ...mapped.urinals].filter(
+        (f) => Number(f?.usagePct) > 0
+      ).length;
+      setDummyUsersEntered((prev) =>
+        Math.max(prev, mapped.satisfiedUsers + mapped.queue.length + active)
+      );
+    };
+    const close = openSchedulerStream((event, data) => {
+      const stamp = new Date().toLocaleString();
+      if (event === "scheduler_state") {
+        applySnapshot(data);
+        return;
+      }
+      if (event === "queue_updated") {
+        const q = Array.isArray(data?.queue) ? data.queue : [];
+        setDummyQueue(
+          q.map((x) => ({ id: Number(x.id), type: String(x.type) }))
+        );
+        return;
+      }
+      if (event === "assignment_started") {
+        const fid = Number(data?.fixture_id);
+        if (!Number.isInteger(fid)) return;
+        const updater = (prev) =>
+          prev.map((x) =>
+            x.id === fid ? { ...x, usagePct: 100 } : x
+          );
+        setDummyStalls(updater);
+        setDummyUrinals(updater);
+        if (appModeRef.current === APP_MODE_DUMMY) {
+          const kind = data?.fixture_kind || "fixture";
+          const u = data?.user_type || "user";
+          const dur = Number(data?.duration_s);
+          const durText = Number.isFinite(dur) ? ` (${dur.toFixed(1)}s)` : "";
+          setLogs((prev) => [
+            ...prev,
+            `[Dummy] ${u}-er -> ${kind} ${fid}${durText} - ${stamp}`,
+          ]);
+        }
+        return;
+      }
+      if (event === "assignment_completed") {
+        const fid = Number(data?.fixture_id);
+        if (!Number.isInteger(fid)) return;
+        const updater = (prev) =>
+          prev.map((x) =>
+            x.id === fid ? { ...x, usagePct: 0 } : x
+          );
+        setDummyStalls(updater);
+        setDummyUrinals(updater);
+        if (Number.isFinite(Number(data?.satisfied_users))) {
+          setDummySatisfiedUsers(Number(data.satisfied_users));
+        }
+        if (appModeRef.current === APP_MODE_DUMMY) {
+          const kind = data?.fixture_kind || "fixture";
+          setLogs((prev) => [
+            ...prev,
+            `[Dummy] ${kind} ${fid} completed - ${stamp}`,
+          ]);
+        }
+        return;
+      }
+      if (event === "reset") {
+        setDummyQueue([]);
+        setDummyStalls(EMPTY_DUMMY_FIXTURES.stalls);
+        setDummyUrinals(EMPTY_DUMMY_FIXTURES.urinals);
+        setDummySatisfiedUsers(0);
+        setDummyUsersEntered(0);
+      }
+    });
+    return close;
+  }, []);
+
   const toiletTypes = useMemo(
     () => toiletTypesForPreset(simulationConfig.restroomPreset),
     [simulationConfig.restroomPreset]
   );
+
+  // Whenever the simulation config or cleanliness changes, push an
+  // updated snapshot to the backend scheduler. This keeps the dummy
+  // scheduler's decisions in sync with the Behavioral Model dialog
+  // the user is looking at, regardless of the current mode.
+  useEffect(() => {
+    updateSchedulerConfig({
+      restroomPreset: simulationConfig.restroomPreset,
+      toiletTypes,
+      shyPeerPct: simulationConfig.shyPeerPct,
+      middleToiletFirstChoicePct: simulationConfig.middleToiletFirstChoicePct,
+      restroomConditions,
+    });
+  }, [
+    simulationConfig.restroomPreset,
+    simulationConfig.shyPeerPct,
+    simulationConfig.middleToiletFirstChoicePct,
+    toiletTypes,
+    restroomConditions,
+  ]);
 
   const handleSimulationConfigChange = (partial) => {
     if (
@@ -207,14 +347,38 @@ export default function App() {
   };
 
   const handleAddPee = () => {
+    if (appModeRef.current === APP_MODE_DUMMY) {
+      enqueueUser("pee").then((result) => {
+        if (result?.ok) {
+          setDummyUsersEntered((prev) => prev + 1);
+        }
+      });
+      return;
+    }
+    setSimUsersEntered((prev) => prev + 1);
     setQueue((prev) => [{ id: nextQueueId++, type: "pee" }, ...prev]);
   };
 
   const handleAddPoo = () => {
+    if (appModeRef.current === APP_MODE_DUMMY) {
+      enqueueUser("poo").then((result) => {
+        if (result?.ok) {
+          setDummyUsersEntered((prev) => prev + 1);
+        }
+      });
+      return;
+    }
+    setSimUsersEntered((prev) => prev + 1);
     setQueue((prev) => [{ id: nextQueueId++, type: "poo" }, ...prev]);
   };
 
   const handleClearQueue = () => {
+    if (appModeRef.current === APP_MODE_DUMMY) {
+      setDummyUsersEntered((prev) => Math.max(0, prev - dummyQueue.length));
+      clearSchedulerQueue();
+      return;
+    }
+    setSimUsersEntered((prev) => Math.max(0, prev - queue.length));
     setQueue([]);
   };
 
@@ -234,10 +398,12 @@ export default function App() {
     setUrinals(fresh.urinals);
     setElapsedTimeText(INITIAL_ELAPSED_TIME_TEXT);
     setSatisfiedUsers(INITIAL_SATISFIED_USERS);
-  };
-
-  const handleAppendLogLine = (line) => {
-    setLogs((prev) => [...prev, line]);
+    setSimUsersEntered(INITIAL_USERS_ENTERED);
+    setDummyUsersEntered(INITIAL_USERS_ENTERED);
+    // Reset backend scheduler too — clears any queued/in-use work and
+    // counters across all modes. Dummy mode hydration will pick up the
+    // cleared snapshot via SSE.
+    resetScheduler();
   };
 
   /**
@@ -280,25 +446,59 @@ export default function App() {
   }, []);
 
   /**
-   * Switch the app-wide mode between SIM and TEST. On an actual change,
-   * broadcast `{command:"MODE", type:"SET", action:<TEST|SIM>}` to every
-   * currently-connected node. Disconnected nodes are skipped (the server
-   * returns 502 otherwise) and each outcome is logged.
+   * Switch the app-wide mode between SIM, TEST, and DUMMY.
+   *
+   * SIM/TEST: broadcast `{command:"MODE", type:"SET", action:<SIM|TEST>}`
+   * to every currently-connected node (nodes only understand SIM/TEST).
+   * DUMMY: purely in-process, no node traffic.
+   *
+   * In every case the backend scheduler is told the new mode so it
+   * starts/stops its tick assignment behaviour accordingly.
    */
   const handleAppModeChange = (next) => {
-    if (next !== APP_MODE_SIM && next !== APP_MODE_TEST) return;
+    if (
+      next !== APP_MODE_SIM &&
+      next !== APP_MODE_TEST &&
+      next !== APP_MODE_DUMMY
+    )
+      return;
     if (next === appMode) return;
     setAppMode(next);
-    const payload = { command: "MODE", type: "SET", action: next };
-    for (let i = 0; i < NODE_COUNT; i += 1) {
-      if (!nodeConnections[i]) continue;
-      handleTestSend(i + 1, payload);
+    setSchedulerMode(next);
+    if (next !== APP_MODE_DUMMY) {
+      const payload = { command: "MODE", type: "SET", action: next };
+      for (let i = 0; i < NODE_COUNT; i += 1) {
+        if (!nodeConnections[i]) continue;
+        handleTestSend(i + 1, payload);
+      }
     }
   };
 
   const handleViewBehavioralModel = () => {
     setBehavioralModelOpen(true);
   };
+
+  const isDummy = appMode === APP_MODE_DUMMY;
+  const viewQueue = isDummy ? dummyQueue : queue;
+  const viewStalls = isDummy ? dummyStalls : stalls;
+  const viewUrinals = isDummy ? dummyUrinals : urinals;
+  const viewSatisfiedUsers = isDummy ? dummySatisfiedUsers : satisfiedUsers;
+  const viewUsersEntered = isDummy ? dummyUsersEntered : simUsersEntered;
+  const activeUsers =
+    [...viewStalls, ...viewUrinals].filter((f) => Number(f?.usagePct) > 0).length;
+  const totalUsers = Math.max(
+    0,
+    viewUsersEntered - viewQueue.length - activeUsers
+  );
+  const unsatisfiedUsers = Math.max(0, totalUsers - viewSatisfiedUsers);
+  const unsatisfiedPct =
+    totalUsers > 0 ? (unsatisfiedUsers / totalUsers) * 100 : 0;
+  // In Dummy Mode the digital twin is a pure simulation; the BLE node
+  // connection state is irrelevant so we hide the "Node Disconnected"
+  // overlay by claiming everything is connected.
+  const viewNodeConnections = isDummy
+    ? Array.from({ length: NODE_COUNT }, () => true)
+    : nodeConnections;
 
   return (
     <ThemeProvider theme={theme}>
@@ -340,15 +540,17 @@ export default function App() {
             onDecreaseCleanlinessAll={handleDecreaseCleanlinessAll}
             onSendMaintenance={handleSendMaintenance}
           />
-          {appMode === APP_MODE_SIM ? (
+          {appMode === APP_MODE_SIM || appMode === APP_MODE_DUMMY ? (
             <SimulationDigitalTwin
               elapsedTimeText={elapsedTimeText}
-              satisfiedUsers={satisfiedUsers}
-              queue={queue}
+              satisfiedUsers={viewSatisfiedUsers}
+              totalUsers={totalUsers}
+              unsatisfiedPct={unsatisfiedPct}
+              queue={viewQueue}
               toiletTypes={toiletTypes}
-              stalls={stalls}
-              urinals={urinals}
-              nodeConnections={nodeConnections}
+              stalls={viewStalls}
+              urinals={viewUrinals}
+              nodeConnections={viewNodeConnections}
               onAddPee={handleAddPee}
               onAddPoo={handleAddPoo}
               onClearQueue={handleClearQueue}

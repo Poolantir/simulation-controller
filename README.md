@@ -109,3 +109,65 @@ backend/.venv/bin/python backend/server.py
 | Flask API | [http://localhost:5001](http://localhost:5001) |
 
 
+## Dummy Mode
+
+Dummy Mode drives the digital twin as a pure simulation — no BLE nodes
+are required. Users are added to the queue via the `Pee`/`Poo` buttons;
+the backend scheduler consumes them FIFO and places each user at an
+eligible, currently-free toilet chosen by the behavioral model. The
+occupancy of each fixture is released automatically after a randomised
+usage duration, which re-opens that toilet to the next queued user.
+
+### Behaviour
+
+- **Usage durations**
+  - Pee-ers: random uniform 2.0–4.0 seconds
+  - Poo-ers: random uniform 10.0–15.0 seconds
+- **Selection policy** (recomputed on *every* assignment)
+  - Poo-ers only use stalls. If all stalls are busy, the user waits.
+  - Pee-ers split stall-vs-urinal by `shyPeerPct`. When only one group
+    has a free slot, 100% of the probability is redirected there.
+  - The middle-toilet-first rule keeps working when siblings are busy:
+    * Free middle + free outer(s): outers share `(1 - m)`, middle gets
+      `m`. So a busy stall-3 plus a 2% middle rule puts 98% on stall-1.
+    * Free middle only: middle gets 1.
+    * Free outers only: 50/50 across remaining outers (e.g. middle busy
+      with both outers free).
+- **Preset support**
+  - MacLean (3 stalls + 3 urinals): full 3-slot rules.
+  - Seamen Center (2 stalls + 2 urinals, no middle): the middle rule
+    does not apply; free slots split equally within each group.
+- **Non-existent / Out-of-Order fixtures** are excluded from candidacy.
+- **Reset Simulation** clears the backend queue, in-use flags, and
+  satisfied-user count alongside the frontend's local sim state.
+
+### Scheduler HTTP API
+
+All scheduler endpoints are served by the Flask API (default
+`http://localhost:5001`).
+
+| Method | Path                            | Purpose                                    |
+| ------ | ------------------------------- | ------------------------------------------ |
+| GET    | `/api/scheduler/state`          | Current snapshot (mode, queue, fixtures).  |
+| POST   | `/api/scheduler/mode`           | `{ "mode": "SIM" | "TEST" | "DUMMY" }`     |
+| POST   | `/api/scheduler/config`         | Push preset / percentages / cleanliness.   |
+| POST   | `/api/scheduler/enqueue`        | `{ "type": "pee" | "poo" }`                |
+| POST   | `/api/scheduler/queue/clear`    | Drop every queued user.                    |
+| POST   | `/api/scheduler/reset`          | Clear queue + in-use flags + counters.     |
+| GET    | `/api/scheduler/stream`         | SSE stream of scheduler events.            |
+
+SSE event types emitted on `/api/scheduler/stream`:
+
+- `scheduler_state` (full snapshot; sent on connect and after major changes)
+- `queue_updated`
+- `assignment_started`
+- `assignment_completed`
+- `mode_changed`
+- `config_updated`
+- `reset`
+
+### Tests
+
+```
+python3 -m unittest discover -s backend/tests -v
+```

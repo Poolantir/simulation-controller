@@ -34,8 +34,8 @@ function NodeCard({ id, connected, onSend, onConnect, onDisconnect }) {
     onSend(id, { command: "TEST", type: "LED", action });
   const sendServo = (action) =>
     onSend(id, { command: "TEST", type: "SERVO", action });
-  const sendSim = () =>
-    onSend(id, { command: "TEST", type: "SIM", action: "RUN" });
+  const sendUser = () =>
+    onSend(id, { command: "USAGE", type: "DURATION_S", action: 2 });
   const sendEcho = () => {
     const trimmed = echoMessage.trim();
     if (!trimmed) return;
@@ -134,7 +134,7 @@ function NodeCard({ id, connected, onSend, onConnect, onDisconnect }) {
 
         <Box className="node-test-card__section">
           <Typography className="node-test-card__label" component="div">
-            SIMULATE
+            SEND USER
           </Typography>
           <Button
             type="button"
@@ -142,9 +142,9 @@ function NodeCard({ id, connected, onSend, onConnect, onDisconnect }) {
             variant="outlined"
             className="node-test-card__btn node-test-card__btn--primary node-test-card__btn--wide"
             disabled={disabled}
-            onClick={sendSim}
+            onClick={sendUser}
           >
-            SIMULATE
+            Send User
           </Button>
         </Box>
 

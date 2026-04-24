@@ -172,7 +172,7 @@ export default function Sidebar({
 
       {/* Simulation Logs */}
       <SidebarSquare
-        title="Simulation Logs"
+        title="Server Logs"
         flex={2}
         className="sidebar-square--logs"
         contentOverflow="hidden"

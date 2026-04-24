@@ -36,6 +36,8 @@ function buildTwinRows(toiletTypes, stalls, urinals) {
 export default function SimulationDigitalTwin({
   elapsedTimeText,
   satisfiedUsers,
+  totalUsers,
+  unsatisfiedPct,
   queue,
   toiletTypes,
   stalls,
@@ -58,77 +60,81 @@ export default function SimulationDigitalTwin({
       />
 
       <Box className="digital-twin-right">
-        <SimulationElapsedTime
-          text={elapsedTimeText}
-          satisfiedUsers={satisfiedUsers}
-        />
+        <Box className="digital-twin-main-row">
+          <SimulationElapsedTime
+            text={elapsedTimeText}
+            satisfiedUsers={satisfiedUsers}
+            totalUsers={totalUsers}
+            unsatisfiedPct={unsatisfiedPct}
+          />
 
-        <Box className="toilet-column">
-          <Box className="toilet-column-stack">
-            {rows.map((row, idx) => {
-              const isStall = row.kind === "stall";
-              const isUrinal = row.kind === "urinal";
-              const isNonexistent = row.kind === "nonexistent";
-              const isDisconnected =
-                !isNonexistent && connections[row.id - 1] === false;
-              const stallOccupied =
-                isStall && !row.outOfOrder && (row.usagePct ?? 0) > 0;
-              const urinalOccupied =
-                isUrinal && (row.usagePct ?? 0) > 0;
+          <Box className="toilet-column">
+            <Box className="toilet-column-stack">
+              {rows.map((row, idx) => {
+                const isStall = row.kind === "stall";
+                const isUrinal = row.kind === "urinal";
+                const isNonexistent = row.kind === "nonexistent";
+                const isDisconnected =
+                  !isNonexistent && connections[row.id - 1] === false;
+                const stallOccupied =
+                  isStall && !row.outOfOrder && (row.usagePct ?? 0) > 0;
+                const urinalOccupied =
+                  isUrinal && (row.usagePct ?? 0) > 0;
 
-              const nextRow = idx < rows.length - 1 ? rows[idx + 1] : null;
-              const sepIsStall =
-                nextRow != null &&
-                (isStall || nextRow.kind === "stall");
+                const nextRow = idx < rows.length - 1 ? rows[idx + 1] : null;
+                const sepIsStall =
+                  nextRow != null &&
+                  (isStall || nextRow.kind === "stall");
 
-              return (
-                <Fragment key={`toilet-${row.id}`}>
-                  <Box className="toilet-column-slot">
-                    {isNonexistent ? (
-                      <Box
-                        className="toilet-column-nonexistent"
-                        aria-label={`Toilet ${row.id} non-existent`}
-                      />
-                    ) : isDisconnected ? (
-                      <Box
-                        className="toilet-column-disconnected"
-                        aria-label={`Node ${row.id} disconnected`}
-                      >
-                        <Typography
-                          className="toilet-column-disconnected__label"
-                          component="span"
+                return (
+                  <Fragment key={`toilet-${row.id}`}>
+                    <Box className="toilet-column-slot">
+                      {isNonexistent ? (
+                        <Box
+                          className="toilet-column-nonexistent"
+                          aria-label={`Toilet ${row.id} non-existent`}
+                        />
+                      ) : isDisconnected ? (
+                        <Box
+                          className="toilet-column-disconnected"
+                          aria-label={`Node ${row.id} disconnected`}
                         >
-                          Node Disconnected
-                        </Typography>
-                      </Box>
-                    ) : isStall ? (
-                      <StallContainer
-                        id={row.id}
-                        usagePct={row.usagePct}
-                        outOfOrder={row.outOfOrder || false}
-                        fillColor={
-                          row.outOfOrder ? "empty" : stallOccupied ? "pee" : "empty"
-                        }
+                          <Typography
+                            className="toilet-column-disconnected__label"
+                            component="span"
+                          >
+                            Node Disconnected
+                          </Typography>
+                        </Box>
+                      ) : isStall ? (
+                        <StallContainer
+                          id={row.id}
+                          usagePct={row.usagePct}
+                          outOfOrder={row.outOfOrder || false}
+                          fillColor={
+                            row.outOfOrder ? "empty" : stallOccupied ? "pee" : "empty"
+                          }
+                        />
+                      ) : (
+                        <UrinalContainer
+                          id={row.id}
+                          usagePct={row.usagePct}
+                          fillColor={urinalOccupied ? "pee" : "empty"}
+                        />
+                      )}
+                    </Box>
+                    {idx < rows.length - 1 ? (
+                      <Box
+                        className={`toilet-column-separator toilet-column-separator--${
+                          sepIsStall ? "stall" : "urinal"
+                        }`}
+                        aria-hidden
                       />
-                    ) : (
-                      <UrinalContainer
-                        id={row.id}
-                        usagePct={row.usagePct}
-                        fillColor={urinalOccupied ? "pee" : "empty"}
-                      />
-                    )}
-                  </Box>
-                  {idx < rows.length - 1 ? (
-                    <Box
-                      className={`toilet-column-separator toilet-column-separator--${
-                        sepIsStall ? "stall" : "urinal"
-                      }`}
-                      aria-hidden
-                    />
-                  ) : null}
-                </Fragment>
-              );
-            })}
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </Box>
           </Box>
         </Box>
       </Box>

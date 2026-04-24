@@ -2,16 +2,13 @@
 
 .elapsed-time-block {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: flex-start;
   align-self: stretch;
   width: 100%;
   flex-shrink: 0;
   padding: var(--space-1) 0 var(--space-3);
-  column-gap: var(--space-3);
-  row-gap: var(--space-1);
+  gap: var(--space-1);
 }
 
 .elapsed-time-label {
@@ -26,10 +23,19 @@
   min-width: 0;
 }
 
-.satisfied-users {
+.elapsed-time-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.satisfied-users,
+.total-users,
+.unsatisfied-users {
   font-size: var(--font-size-md) !important;
   color: var(--color-text);
-  text-align: right;
+  text-align: left;
   flex-shrink: 0;
   min-width: 0;
 }

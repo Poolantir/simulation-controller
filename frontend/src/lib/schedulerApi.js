@@ -1,0 +1,195 @@
+/**
+ * Thin client for the backend Dummy Mode scheduler.
+ *
+ * The scheduler is *backend authoritative*: the frontend enqueues pee/poo
+ * requests, pushes config snapshots, and subscribes to the scheduler's
+ * SSE stream for live state. All occupancy timing, behavioral choice,
+ * and queue progression happens server-side.
+ */
+
+import { getApiBase } from "./nodesApi";
+
+export const SCHEDULER_MODE_SIM = "SIM";
+export const SCHEDULER_MODE_TEST = "TEST";
+export const SCHEDULER_MODE_DUMMY = "DUMMY";
+
+async function postJson(path, body) {
+  try {
+    const init = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    const res = await fetch(`${getApiBase()}${path}`, init);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: data.error || `HTTP ${res.status}`, data };
+    }
+    return { ok: Boolean(data.ok), error: data.error, data };
+  } catch (err) {
+    return { ok: false, error: err?.message || "network error" };
+  }
+}
+
+async function getJson(path) {
+  try {
+    const res = await fetch(`${getApiBase()}${path}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: data.error || `HTTP ${res.status}`, data };
+    }
+    return { ok: Boolean(data.ok), error: data.error, data };
+  } catch (err) {
+    return { ok: false, error: err?.message || "network error" };
+  }
+}
+
+export function setSchedulerMode(mode) {
+  return postJson("/api/scheduler/mode", { mode });
+}
+
+export function enqueueUser(type) {
+  return postJson("/api/scheduler/enqueue", { type });
+}
+
+export function clearSchedulerQueue() {
+  return postJson("/api/scheduler/queue/clear");
+}
+
+export function resetScheduler() {
+  return postJson("/api/scheduler/reset");
+}
+
+/**
+ * Push a config snapshot to the scheduler. Any field omitted is left
+ * untouched on the backend. `restroom_conditions` accepts the frontend
+ * shape `{stalls:[{id,condition}], urinals:[{id,condition}]}`.
+ */
+export function updateSchedulerConfig({
+  restroomPreset,
+  toiletTypes,
+  shyPeerPct,
+  middleToiletFirstChoicePct,
+  restroomConditions,
+} = {}) {
+  const body = {};
+  if (restroomPreset !== undefined) body.restroom_preset = restroomPreset;
+  if (toiletTypes !== undefined) body.toilet_types = toiletTypes;
+  if (shyPeerPct !== undefined) body.shy_peer_pct = shyPeerPct;
+  if (middleToiletFirstChoicePct !== undefined)
+    body.middle_toilet_first_choice_pct = middleToiletFirstChoicePct;
+  if (restroomConditions !== undefined)
+    body.restroom_conditions = restroomConditions;
+  return postJson("/api/scheduler/config", body);
+}
+
+export function getSchedulerState() {
+  return getJson("/api/scheduler/state");
+}
+
+const SCHEDULER_EVENT_NAMES = [
+  "scheduler_state",
+  "queue_updated",
+  "assignment_started",
+  "assignment_completed",
+  "mode_changed",
+  "config_updated",
+  "reset",
+];
+
+/**
+ * Subscribe to scheduler SSE events. Returns a close() function.
+ *
+ * `onEvent(eventName, payload)` is invoked for each event, plus a
+ * synthetic `error` event if the underlying EventSource fails.
+ * Reconnects after 2s after a stream error (matches nodesApi behavior).
+ */
+export function openSchedulerStream(onEvent) {
+  let es = null;
+  let closed = false;
+  let retryTimer = null;
+
+  const connect = () => {
+    if (closed) return;
+    es = new EventSource(`${getApiBase()}/api/scheduler/stream`);
+    for (const name of SCHEDULER_EVENT_NAMES) {
+      es.addEventListener(name, (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          onEvent?.(name, data);
+        } catch {
+          /* ignore malformed frames */
+        }
+      });
+    }
+    es.onerror = () => {
+      if (closed) return;
+      try {
+        es.close();
+      } catch {
+        /* noop */
+      }
+      es = null;
+      retryTimer = setTimeout(connect, 2000);
+    };
+  };
+
+  connect();
+
+  return function close() {
+    closed = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    if (es) {
+      try {
+        es.close();
+      } catch {
+        /* noop */
+      }
+    }
+  };
+}
+
+/**
+ * Translate a backend scheduler snapshot into the shape the frontend
+ * App/DigitalTwin already consumes. Returns `null` on a clearly-invalid
+ * snapshot so callers can fall back to their local state.
+ */
+export function schedulerSnapshotToFrontendState(snap) {
+  if (!snap || typeof snap !== "object") return null;
+  const fixtures = Array.isArray(snap.fixtures) ? snap.fixtures : [];
+
+  const stalls = [];
+  const urinals = [];
+  for (const f of fixtures) {
+    const id = Number(f?.id);
+    if (!Number.isInteger(id)) continue;
+    const kind = String(f?.kind || "").toLowerCase();
+    const inUse = Boolean(f?.in_use);
+    const usagePct = inUse ? 100 : 0;
+    const outOfOrder = f?.condition === "Out-of-Order";
+    if (kind === "stall") {
+      stalls.push({ id, usagePct, outOfOrder });
+    } else if (kind === "urinal") {
+      urinals.push({ id, usagePct, outOfOrder });
+    } else {
+      // Non-existent fixtures still need an entry so DigitalTwin's
+      // id-indexed lookup keeps working; mark them zeroed.
+      if (id <= 3) stalls.push({ id, usagePct: 0, outOfOrder: false });
+      else urinals.push({ id, usagePct: 0, outOfOrder: false });
+    }
+  }
+
+  const queue = Array.isArray(snap.queue)
+    ? snap.queue.map((q) => ({ id: Number(q.id), type: String(q.type) }))
+    : [];
+
+  return {
+    mode: snap.mode,
+    queue,
+    stalls,
+    urinals,
+    satisfiedUsers: Number(snap.satisfied_users ?? 0),
+    startedAt: snap.started_at ?? null,
+    now: snap.now ?? null,
+  };
+}

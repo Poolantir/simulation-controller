@@ -29,30 +29,43 @@
 .digital-twin-right {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-/* Keep elapsed-time header from shrinking; toilet column absorbs remaining height */
-.digital-twin-right .elapsed-time-block {
-  flex-shrink: 0;
+.digital-twin-main-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  gap: var(--space-6);
+}
+
+/* Labels live left of toilets in a fixed column. */
+.digital-twin-main-row .elapsed-time-block {
+  flex: 0 0 12rem;
+  width: 12rem;
+  min-width: 0;
+  padding-top: var(--space-1);
 }
 
 .toilet-column {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: flex-start;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   align-self: stretch;
   min-height: 0;
   gap: 0;
-  overflow-x: hidden;
+  overflow-x: visible;
   overflow-y: auto;
-  zoom: 0.7;
+  zoom: 1;
 }
 
 /* Six equal-height rows + hairline seps; absorbs column height */
@@ -60,7 +73,9 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: 32.8125rem;
+  width: min(100%, 32.8125rem);
+  max-width: 32.8125rem;
+  margin-left: auto;
   flex: 1 1 0;
   min-height: 0;
   gap: 0;
@@ -69,6 +84,7 @@
   /* ~12.8rem ≈ left edge of icon+urinal in 23.75rem column; 12rem run → small protrusion past bowl */
   --urinal-sep-left-run: 12rem;
   --urinal-sep-start: calc(var(--urinal-art-column) - var(--urinal-sep-left-run));
+  --sep-right-inset: 0rem;
 }
 
 .toilet-column-slot {
@@ -151,30 +167,32 @@
 
 .toilet-column-separator--stall {
   width: 100%;
+  margin-right: 0;
   align-self: stretch;
 }
 
 .toilet-column-separator--urinal {
   width: calc(100% - var(--urinal-sep-start));
   margin-left: var(--urinal-sep-start);
+  margin-right: 0;
   align-self: flex-start;
   box-sizing: border-box;
 }
 
 @media (min-height: 900px) {
-  .toilet-column { zoom: 0.85; }
+  .toilet-column { zoom: 1.05; }
 }
 @media (min-height: 1080px) {
-  .toilet-column { zoom: 1; }
+  .toilet-column { zoom: 1.12; }
 }
 @media (max-height: 800px) {
-  .toilet-column { zoom: 0.6; }
+  .toilet-column { zoom: 0.82; }
 }
 @media (max-height: 680px) {
-  .toilet-column { zoom: 0.5; }
+  .toilet-column { zoom: 0.72; }
 }
 @media (max-height: 560px) {
-  .toilet-column { zoom: 0.42; }
+  .toilet-column { zoom: 0.62; }
 }
 
 /* Ultra-wide: slightly larger padding/gap so the twin pane breathes */

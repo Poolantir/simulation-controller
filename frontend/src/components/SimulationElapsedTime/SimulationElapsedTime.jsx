@@ -11,8 +11,17 @@ function splitElapsedTimeLabel(text) {
   };
 }
 
-export default function SimulationElapsedTime({ text, satisfiedUsers }) {
+export default function SimulationElapsedTime({
+  text,
+  satisfiedUsers,
+  totalUsers,
+  unsatisfiedPct,
+}) {
   const { label, value } = splitElapsedTimeLabel(text);
+  const unsatisfiedDisplay =
+    unsatisfiedPct !== undefined && unsatisfiedPct !== null
+      ? `${Number(unsatisfiedPct).toFixed(1)}%`
+      : null;
 
   return (
     <Box className="elapsed-time-block">
@@ -28,14 +37,32 @@ export default function SimulationElapsedTime({ text, satisfiedUsers }) {
           text
         )}
       </Typography>
-      {satisfiedUsers !== undefined && satisfiedUsers !== null && (
-        <Typography className="satisfied-users" variant="h6">
-          <Box component="span" className="elapsed-time-label">
-            Satisfied Users:
-          </Box>{" "}
-          {satisfiedUsers}
-        </Typography>
-      )}
+      <Box className="elapsed-time-stats">
+        {satisfiedUsers !== undefined && satisfiedUsers !== null && (
+          <Typography className="satisfied-users" variant="h6">
+            <Box component="span" className="elapsed-time-label">
+              Satisfied Users:
+            </Box>{" "}
+            {satisfiedUsers}
+          </Typography>
+        )}
+        {totalUsers !== undefined && totalUsers !== null && (
+          <Typography className="total-users" variant="h6">
+            <Box component="span" className="elapsed-time-label">
+              Total Users:
+            </Box>{" "}
+            {totalUsers}
+          </Typography>
+        )}
+        {unsatisfiedDisplay !== null && (
+          <Typography className="unsatisfied-users" variant="h6">
+            <Box component="span" className="elapsed-time-label">
+              Unsatisfied Users:
+            </Box>{" "}
+            {unsatisfiedDisplay}
+          </Typography>
+        )}
+      </Box>
     </Box>
   );
 }

@@ -9,15 +9,11 @@ export default function Header({
 }) {
   const isSim = appMode === "SIM";
   const isTest = appMode === "TEST";
+  const isDummy = appMode === "DUMMY";
 
   return (
     <Box className="header" component="header">
-      <img
-        className="header-logo"
-        src="/poolantir-simulation-logo.svg"
-        alt="Poolantir Simulation"
-      />
-      <Box className="header-actions">
+      <Box className="header-leading-actions">
         <Button
           type="button"
           className="header-action-btn"
@@ -36,6 +32,13 @@ export default function Header({
         >
           Reset Simulation
         </Button>
+      </Box>
+      <img
+        className="header-logo"
+        src="/poolantir-simulation-logo.svg"
+        alt="Poolantir Simulation"
+      />
+      <Box className="header-actions">
         <Box className="header-mode-group" role="group" aria-label="App mode">
           <Button
             type="button"
@@ -60,6 +63,18 @@ export default function Header({
             onClick={() => onAppModeChange("TEST")}
           >
             Test Mode
+          </Button>
+          <Button
+            type="button"
+            className={`header-action-btn header-mode-btn${
+              isDummy ? " header-mode-btn--active" : ""
+            }`}
+            variant={isDummy ? "contained" : "outlined"}
+            size="small"
+            aria-pressed={isDummy}
+            onClick={() => onAppModeChange("DUMMY")}
+          >
+            Dummy Mode
           </Button>
         </Box>
       </Box>
