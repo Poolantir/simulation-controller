@@ -87,6 +87,16 @@
   height: auto;
 }
 
+/* Non-Existent slot: blank space; row keeps its height so separators stay aligned. */
+.toilet-column-nonexistent {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+  width: 100%;
+  background: transparent;
+  border: none;
+}
+
 /* Square % tile (not stretched to row height); centered in tall rows */
 .toilet-column .usage-square {
   width: 9.0625rem;

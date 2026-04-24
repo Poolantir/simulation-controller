@@ -14,33 +14,37 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import SidebarSquare from "../SidebarSquare/SidebarSquare";
 import SimulationConfiguration from "../SimulationConfiguration/SimulationConfiguration";
+import { toiletTypesForPreset } from "../../lib/restroomPresets";
+import {
+  CLEANLINESS_LEVELS,
+  NON_EXISTENT_CONDITION,
+  cleanlinessLabel,
+} from "../../lib/cleanliness";
 import "./Sidebar.css";
-
-const conditionOptions = [
-  "Clean",
-  "Fair",
-  "Dirty",
-  "Horrendous",
-  "Out-of-Order",
-  "Currently Being Cleaned",
-  "Non-Existent",
-];
 
 /**
  * Merge stalls + urinals into a single labelled list. The label
  * carries the toilet type + id, so future UI that lets the user
  * add / remove / reorder toilets flows through automatically.
  */
-function buildConditionRows(restroomConditions) {
+function buildConditionRows(restroomConditions, toiletTypes) {
+  const slotIsNonexistent = (id) =>
+    String(toiletTypes?.[id - 1] ?? "").toLowerCase() === "nonexistent";
   const stalls = (restroomConditions.stalls || []).map((s) => ({
     key: `stall-${s.id}`,
+    kind: "stalls",
+    id: s.id,
     label: `${s.id} (Stall)`,
     condition: s.condition,
+    disabled: slotIsNonexistent(s.id),
   }));
   const urinals = (restroomConditions.urinals || []).map((u) => ({
     key: `urinal-${u.id}`,
+    kind: "urinals",
+    id: u.id,
     label: `${u.id} (Urinal)`,
     condition: u.condition,
+    disabled: slotIsNonexistent(u.id),
   }));
   return [...stalls, ...urinals];
 }
@@ -52,21 +56,14 @@ export default function Sidebar({
   onChangeStatus,
   simulationConfig,
   onSimulationConfigChange,
+  onConditionChange,
+  onIncreaseCleanlinessAll,
+  onDecreaseCleanlinessAll,
+  onSendMaintenance,
 }) {
   const [logsFullscreen, setLogsFullscreen] = useState(false);
-  const conditionRows = buildConditionRows(restroomConditions);
-
-  const handleIncreaseCleanlinessAll = () => {
-    // TODO: +1 cleanliness for all toilets (batch)
-  };
-
-  const handleDecreaseCleanlinessAll = () => {
-    // TODO: -1 cleanliness for all toilets (batch)
-  };
-
-  const handleSendMaintenance = () => {
-    // TODO: send maintenance (batch / notify)
-  };
+  const toiletTypes = toiletTypesForPreset(simulationConfig.restroomPreset);
+  const conditionRows = buildConditionRows(restroomConditions, toiletTypes);
 
   return (
     <Box className="sidebar">
@@ -88,27 +85,54 @@ export default function Sidebar({
       >
         <Box className="condition-panel">
           <Box className="condition-rows">
-            {conditionRows.map((row) => (
-              <Box key={row.key} className="condition-row">
-                <Typography className="condition-label" component="span" variant="body2">
-                  {row.label}:
-                </Typography>
-                <Select
-                  className="condition-select"
-                  fullWidth
-                  size="small"
-                  value={row.condition}
-                  readOnly
-                  sx={{ flex: 1, minWidth: 0 }}
-                >
-                  {conditionOptions.map((opt) => (
-                    <MenuItem key={opt} value={opt} className="condition-menu-item">
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </Box>
-            ))}
+            {conditionRows.map((row) => {
+              const isLocked =
+                row.disabled || row.condition === NON_EXISTENT_CONDITION;
+              return (
+                <Box key={row.key} className="condition-row">
+                  <Typography
+                    className="condition-label"
+                    component="span"
+                    variant="body2"
+                  >
+                    {row.label}:
+                  </Typography>
+                  <Select
+                    className="condition-select"
+                    fullWidth
+                    size="small"
+                    value={row.condition}
+                    disabled={isLocked}
+                    onChange={(e) =>
+                      onConditionChange?.(row.kind, row.id, e.target.value)
+                    }
+                    renderValue={(v) => cleanlinessLabel(v)}
+                    sx={{ flex: 1, minWidth: 0 }}
+                  >
+                    {/* Hidden anchor so MUI doesn't warn about an out-of-list value
+                        when the slot is locked (Non-Existent). */}
+                    {isLocked ? (
+                      <MenuItem
+                        value={NON_EXISTENT_CONDITION}
+                        className="condition-menu-item"
+                        sx={{ display: "none" }}
+                      >
+                        {NON_EXISTENT_CONDITION}
+                      </MenuItem>
+                    ) : null}
+                    {CLEANLINESS_LEVELS.map((opt) => (
+                      <MenuItem
+                        key={opt.value}
+                        value={opt.value}
+                        className="condition-menu-item"
+                      >
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </Box>
+              );
+            })}
           </Box>
 
           <Box className="condition-batch-actions">
@@ -118,7 +142,7 @@ export default function Sidebar({
               size="small"
               fullWidth
               className="condition-batch-btn"
-              onClick={handleIncreaseCleanlinessAll}
+              onClick={onIncreaseCleanlinessAll}
             >
               +1 Cleanliness to All
             </Button>
@@ -128,7 +152,7 @@ export default function Sidebar({
               size="small"
               fullWidth
               className="condition-batch-btn"
-              onClick={handleDecreaseCleanlinessAll}
+              onClick={onDecreaseCleanlinessAll}
             >
               -1 Cleanliness to All
             </Button>
@@ -138,7 +162,7 @@ export default function Sidebar({
               size="small"
               fullWidth
               className="condition-batch-btn"
-              onClick={handleSendMaintenance}
+              onClick={onSendMaintenance}
             >
               Send Maintenance
             </Button>

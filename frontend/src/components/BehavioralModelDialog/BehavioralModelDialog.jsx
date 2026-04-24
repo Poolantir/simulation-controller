@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import BehavioralModel from "../BehavioralModel/BehavioralModel";
+import { toiletTypesForPreset } from "../../lib/restroomPresets";
 import "./BehavioralModelDialog.css";
 
 const POSITION_3 = ["Left", "Middle", "Right"];
@@ -21,6 +22,7 @@ const POSITION_2 = ["Left", "Right"];
 
 function toiletTypeLabel(toiletTypes, globalIdx) {
   const type = String(toiletTypes[globalIdx] ?? "").toLowerCase();
+  if (type === "nonexistent") return "Non-Existent";
   if (type !== "stall" && type !== "urinal") return "—";
   const siblings = toiletTypes
     .map((t, i) => (String(t).toLowerCase() === type ? i : -1))
@@ -35,6 +37,7 @@ function toiletTypeLabel(toiletTypes, globalIdx) {
 
 function toiletCondition(restroomConditions, toiletTypes, globalIdx) {
   const type = String(toiletTypes[globalIdx] ?? "").toLowerCase();
+  if (type === "nonexistent") return "Non-Existent";
   const pool =
     type === "stall"
       ? restroomConditions?.stalls
@@ -58,7 +61,8 @@ export default function BehavioralModelDialog({
   simulationConfig,
   restroomConditions,
 }) {
-  const toiletTypes = simulationConfig.toiletTypes;
+  const toiletTypes = toiletTypesForPreset(simulationConfig.restroomPreset);
+  const resolvedConfig = { ...simulationConfig, toiletTypes };
   const shy = simulationConfig.shyPeerPct;
   const mid = simulationConfig.middleToiletFirstChoicePct;
 
@@ -139,8 +143,8 @@ export default function BehavioralModelDialog({
         <Box className="bm-dialog-cases-row">
           <Box className="bm-dialog-case-cell">
             <BehavioralModel
-              title="Pee Decision Tree"
-              config={simulationConfig}
+              title="Pee Decision Tree (Empty Restroom)"
+              config={resolvedConfig}
               restroomConditions={restroomConditions}
               userType="pee"
               size="large"
@@ -148,8 +152,8 @@ export default function BehavioralModelDialog({
           </Box>
           <Box className="bm-dialog-case-cell">
             <BehavioralModel
-              title="Poo Decision Tree"
-              config={simulationConfig}
+              title="Poo Decision Tree (Empty Restroom)"
+              config={resolvedConfig}
               restroomConditions={restroomConditions}
               userType="poo"
               size="large"

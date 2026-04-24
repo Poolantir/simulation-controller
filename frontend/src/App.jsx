@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CssBaseline, ThemeProvider, createTheme, Box } from "@mui/material";
 import Header from "./components/Header/Header";
 import Sidebar from "./components/Sidebar/Sidebar";
@@ -6,14 +6,13 @@ import SimulationDigitalTwin from "./components/SimulationDigitalTwin/Simulation
 import TestConnectionsDialog from "./components/TestConnectionsDialog/TestConnectionsDialog";
 import BehavioralModelDialog from "./components/BehavioralModelDialog/BehavioralModelDialog";
 import {
-  mockState,
-  cloneDefaultSimulationConfig,
-  initialRestroomConditions,
-  initialStalls,
-  initialUrinals,
-  initialElapsedTimeText,
-  initialSatisfiedUsers,
-} from "./mock/mockState";
+  DEFAULT_RESTROOM_PRESET,
+  toiletTypesForPreset,
+} from "./lib/restroomPresets";
+import {
+  bumpCondition,
+  NON_EXISTENT_CONDITION,
+} from "./lib/cleanliness";
 
 const theme = createTheme({
   palette: {
@@ -23,35 +22,158 @@ const theme = createTheme({
   },
 });
 
-let nextQueueId = mockState.queue.length + 1;
+const INITIAL_ELAPSED_TIME_TEXT = "Simulation Time Elapsed: 0min";
+const INITIAL_SATISFIED_USERS = 0;
+
+/**
+ * Build a clean restroom-conditions / fixture state from a preset.
+ * "Clean" for active slots, "Non-Existent" for locked ones; usage at 0.
+ * Stall ids = 1..3, urinal ids = 4..6 (slot index + 1).
+ */
+function buildInitialRestroomState(presetId) {
+  const types = toiletTypesForPreset(presetId);
+  const conditionFor = (idx) =>
+    types[idx] === "nonexistent" ? "Non-Existent" : "Clean";
+  return {
+    restroomConditions: {
+      stalls: [1, 2, 3].map((id) => ({ id, condition: conditionFor(id - 1) })),
+      urinals: [4, 5, 6].map((id) => ({ id, condition: conditionFor(id - 1) })),
+    },
+    stalls: [1, 2, 3].map((id) => ({ id, usagePct: 0 })),
+    urinals: [4, 5, 6].map((id) => ({ id, usagePct: 0 })),
+  };
+}
+
+const INITIAL_SIM_CONFIG = {
+  restroomPreset: DEFAULT_RESTROOM_PRESET,
+  shyPeerPct: 5,
+  middleToiletFirstChoicePct: 2,
+};
+
+let nextQueueId = 1;
 
 export default function App() {
   const [, setSimulationStatus] = useState("stopped");
-  const [simulationConfig, setSimulationConfig] = useState(() =>
-    cloneDefaultSimulationConfig()
+  const [simulationConfig, setSimulationConfig] = useState(() => ({
+    ...INITIAL_SIM_CONFIG,
+  }));
+  const [queue, setQueue] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const initialFixtures = useMemo(
+    () => buildInitialRestroomState(DEFAULT_RESTROOM_PRESET),
+    []
   );
-  const [queue, setQueue] = useState(mockState.queue);
-  const [logs, setLogs] = useState(mockState.logs);
   const [restroomConditions, setRestroomConditions] = useState(
-    () => structuredClone(mockState.restroomConditions)
+    () => initialFixtures.restroomConditions
   );
-  const [stalls, setStalls] = useState(() =>
-    mockState.stalls.map((s) => ({ ...s }))
-  );
-  const [urinals, setUrinals] = useState(() =>
-    mockState.urinals.map((u) => ({ ...u }))
-  );
+  const [stalls, setStalls] = useState(() => initialFixtures.stalls);
+  const [urinals, setUrinals] = useState(() => initialFixtures.urinals);
   const [elapsedTimeText, setElapsedTimeText] = useState(
-    mockState.elapsedTimeText
+    INITIAL_ELAPSED_TIME_TEXT
   );
-  const [satisfiedUsers, setSatisfiedUsers] = useState(
-    mockState.satisfiedUsers
-  );
+  const [satisfiedUsers, setSatisfiedUsers] = useState(INITIAL_SATISFIED_USERS);
   const [testConnectionsOpen, setTestConnectionsOpen] = useState(false);
   const [behavioralModelOpen, setBehavioralModelOpen] = useState(false);
 
-  const handleSimulationConfigChange = (partial) =>
+  const toiletTypes = useMemo(
+    () => toiletTypesForPreset(simulationConfig.restroomPreset),
+    [simulationConfig.restroomPreset]
+  );
+
+  const handleSimulationConfigChange = (partial) => {
+    if (
+      partial.restroomPreset != null &&
+      partial.restroomPreset !== simulationConfig.restroomPreset
+    ) {
+      syncStateForPreset(partial.restroomPreset);
+    }
     setSimulationConfig((prev) => ({ ...prev, ...partial }));
+  };
+
+  /**
+   * Align conditions + twin fixture usage with the preset's nonexistent slots.
+   * Fixture id === global slot index + 1, so stall id 3 and urinal id 6 are
+   * the locked slots in the Seamen preset. Switching back to a layout where
+   * those slots are active resets them to "Clean" with zero usage.
+   */
+  const syncStateForPreset = (presetId) => {
+    const types = toiletTypesForPreset(presetId);
+    setRestroomConditions((prev) => ({
+      stalls: prev.stalls.map((s) => {
+        const idx = s.id - 1;
+        if (types[idx] === "nonexistent") {
+          return { ...s, condition: "Non-Existent" };
+        }
+        return s.condition === "Non-Existent" ? { ...s, condition: "Clean" } : s;
+      }),
+      urinals: prev.urinals.map((u) => {
+        const idx = u.id - 1;
+        if (types[idx] === "nonexistent") {
+          return { ...u, condition: "Non-Existent" };
+        }
+        return u.condition === "Non-Existent" ? { ...u, condition: "Clean" } : u;
+      }),
+    }));
+    setStalls((prev) =>
+      prev.map((s) =>
+        types[s.id - 1] === "nonexistent"
+          ? { ...s, usagePct: 0, outOfOrder: false }
+          : s
+      )
+    );
+    setUrinals((prev) =>
+      prev.map((u) =>
+        types[u.id - 1] === "nonexistent"
+          ? { ...u, usagePct: 0, outOfOrder: false }
+          : u
+      )
+    );
+  };
+
+  /**
+   * Update a single fixture's condition.
+   * `kind` is the restroomConditions key ("stalls" | "urinals"); `id` is the
+   * fixture id (1..6). Non-existent slots are immutable.
+   */
+  const handleConditionChange = (kind, id, condition) => {
+    setRestroomConditions((prev) => ({
+      ...prev,
+      [kind]: prev[kind].map((x) =>
+        x.id === id && x.condition !== NON_EXISTENT_CONDITION
+          ? { ...x, condition }
+          : x
+      ),
+    }));
+  };
+
+  /** Step every existing toilet by `delta` cleanliness levels. */
+  const bumpAllConditions = (delta) => {
+    setRestroomConditions((prev) => ({
+      stalls: prev.stalls.map((s) => ({
+        ...s,
+        condition: bumpCondition(s.condition, delta),
+      })),
+      urinals: prev.urinals.map((u) => ({
+        ...u,
+        condition: bumpCondition(u.condition, delta),
+      })),
+    }));
+  };
+
+  const handleIncreaseCleanlinessAll = () => bumpAllConditions(+1);
+  const handleDecreaseCleanlinessAll = () => bumpAllConditions(-1);
+
+  /** Reset every existing toilet to "Clean"; non-existent slots stay locked. */
+  const handleSendMaintenance = () => {
+    setRestroomConditions((prev) => ({
+      stalls: prev.stalls.map((s) =>
+        s.condition === NON_EXISTENT_CONDITION ? s : { ...s, condition: "Clean" }
+      ),
+      urinals: prev.urinals.map((u) =>
+        u.condition === NON_EXISTENT_CONDITION ? u : { ...u, condition: "Clean" }
+      ),
+    }));
+  };
 
   const handleAddPee = () => {
     setQueue((prev) => [{ id: nextQueueId++, type: "pee" }, ...prev]);
@@ -72,15 +194,15 @@ export default function App() {
   const handleResetSimulation = () => {
     nextQueueId = 1;
     setSimulationStatus("stopped");
-    /* Restores toilet 1–3 stall / 4–6 urinal; twin separator styles follow. */
-    setSimulationConfig(cloneDefaultSimulationConfig());
+    setSimulationConfig({ ...INITIAL_SIM_CONFIG });
     setQueue([]);
     setLogs([]);
-    setRestroomConditions(structuredClone(initialRestroomConditions));
-    setStalls(initialStalls.map((s) => ({ ...s })));
-    setUrinals(initialUrinals.map((u) => ({ ...u })));
-    setElapsedTimeText(initialElapsedTimeText);
-    setSatisfiedUsers(initialSatisfiedUsers);
+    const fresh = buildInitialRestroomState(DEFAULT_RESTROOM_PRESET);
+    setRestroomConditions(fresh.restroomConditions);
+    setStalls(fresh.stalls);
+    setUrinals(fresh.urinals);
+    setElapsedTimeText(INITIAL_ELAPSED_TIME_TEXT);
+    setSatisfiedUsers(INITIAL_SATISFIED_USERS);
   };
 
   const handleAppendLogLine = (line) => {
@@ -134,12 +256,16 @@ export default function App() {
             onChangeStatus={setSimulationStatus}
             simulationConfig={simulationConfig}
             onSimulationConfigChange={handleSimulationConfigChange}
+            onConditionChange={handleConditionChange}
+            onIncreaseCleanlinessAll={handleIncreaseCleanlinessAll}
+            onDecreaseCleanlinessAll={handleDecreaseCleanlinessAll}
+            onSendMaintenance={handleSendMaintenance}
           />
           <SimulationDigitalTwin
             elapsedTimeText={elapsedTimeText}
             satisfiedUsers={satisfiedUsers}
             queue={queue}
-            toiletTypes={simulationConfig.toiletTypes}
+            toiletTypes={toiletTypes}
             stalls={stalls}
             urinals={urinals}
             onAddPee={handleAddPee}

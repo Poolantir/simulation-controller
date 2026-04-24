@@ -23,15 +23,13 @@ function buildTwinRows(toiletTypes, stalls, urinals) {
   const types = Array.isArray(toiletTypes) ? toiletTypes : [];
   return Array.from({ length: TWIN_SLOTS }, (_, i) => {
     const id = i + 1;
-    const raw = types[i];
-    const isStall = String(raw).toLowerCase() === "stall";
+    const raw = String(types[i] ?? "").toLowerCase();
+    let kind;
+    if (raw === "nonexistent") kind = "nonexistent";
+    else if (raw === "stall") kind = "stall";
+    else kind = "urinal";
     const { usagePct, outOfOrder } = mergeFixtureState(id, stalls, urinals);
-    return {
-      id,
-      kind: isStall ? "stall" : "urinal",
-      usagePct,
-      outOfOrder,
-    };
+    return { id, kind, usagePct, outOfOrder };
   });
 }
 
@@ -67,10 +65,12 @@ export default function SimulationDigitalTwin({
           <Box className="toilet-column-stack">
             {rows.map((row, idx) => {
               const isStall = row.kind === "stall";
+              const isUrinal = row.kind === "urinal";
+              const isNonexistent = row.kind === "nonexistent";
               const stallOccupied =
                 isStall && !row.outOfOrder && (row.usagePct ?? 0) > 0;
               const urinalOccupied =
-                !isStall && (row.usagePct ?? 0) > 0;
+                isUrinal && (row.usagePct ?? 0) > 0;
 
               const nextRow = idx < rows.length - 1 ? rows[idx + 1] : null;
               const sepIsStall =
@@ -80,7 +80,12 @@ export default function SimulationDigitalTwin({
               return (
                 <Fragment key={`toilet-${row.id}`}>
                   <Box className="toilet-column-slot">
-                    {isStall ? (
+                    {isNonexistent ? (
+                      <Box
+                        className="toilet-column-nonexistent"
+                        aria-label={`Toilet ${row.id} non-existent`}
+                      />
+                    ) : isStall ? (
                       <StallContainer
                         id={row.id}
                         usagePct={row.usagePct}

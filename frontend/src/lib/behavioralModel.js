@@ -61,9 +61,10 @@ export function computeBehavioralTree({
     .filter((i) => i >= 0);
 
   const conditionFor = (globalIdx) => {
+    const type = toiletTypes[globalIdx];
+    if (type !== "stall" && type !== "urinal") return "Non-Existent";
     if (allClean) return "Clean";
     if (!restroomConditions) return "Clean";
-    const type = toiletTypes[globalIdx];
     const pool =
       type === "stall" ? restroomConditions.stalls : restroomConditions.urinals;
     const entry = pool?.find(

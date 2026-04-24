@@ -7,10 +7,8 @@ import {
   InputAdornment,
 } from "@mui/material";
 import SimulationControlButtons from "../SimulationControlButtons/SimulationControlButtons";
+import { restroomPresetOptions } from "../../lib/restroomPresets";
 import "./SimulationConfiguration.css";
-
-const TOILET_COUNT = 6;
-const TYPE_OPTIONS = ["stall", "urinal"];
 
 function clampPct(raw) {
   const n = parseInt(raw, 10);
@@ -23,39 +21,32 @@ export default function SimulationConfiguration({
   onChange,
   onChangeStatus,
 }) {
-  const handleTypeChange = (index, value) => {
-    const next = [...config.toiletTypes];
-    next[index] = value;
-    onChange({ toiletTypes: next });
-  };
+  const presetOptions = restroomPresetOptions();
 
   return (
     <Box className="sim-config">
-      {/* Toilet type row */}
-      <Box className="sim-config-toilets">
-        {Array.from({ length: TOILET_COUNT }, (_, i) => (
-          <Box key={i} className="sim-config-toilet-col">
-            <Typography className="sim-config-toilet-label">
-              Toilet {i + 1}
-            </Typography>
-            <Select
-              className="sim-config-toilet-select"
-              size="small"
-              value={config.toiletTypes[i]}
-              onChange={(e) => handleTypeChange(i, e.target.value)}
-              aria-label={`Toilet ${i + 1} type`}
-              MenuProps={{
-                PaperProps: { className: "sim-config-toilet-menu" },
-              }}
-            >
-              {TYPE_OPTIONS.map((opt) => (
-                <MenuItem key={opt} value={opt}>
-                  {opt.charAt(0).toUpperCase() + opt.slice(1)}
-                </MenuItem>
-              ))}
-            </Select>
-          </Box>
-        ))}
+      {/* Restroom preset selector */}
+      <Box className="sim-config-preset">
+        <Typography className="sim-config-param-label">
+          Restroom
+        </Typography>
+        <Select
+          className="sim-config-preset-select"
+          size="small"
+          fullWidth
+          value={config.restroomPreset}
+          onChange={(e) => onChange({ restroomPreset: e.target.value })}
+          aria-label="Restroom preset"
+          MenuProps={{
+            PaperProps: { className: "sim-config-toilet-menu" },
+          }}
+        >
+          {presetOptions.map((opt) => (
+            <MenuItem key={opt.id} value={opt.id}>
+              {opt.label}
+            </MenuItem>
+          ))}
+        </Select>
       </Box>
 
       {/* Percentage parameters — one row, two columns */}
