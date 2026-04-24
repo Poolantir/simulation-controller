@@ -39,12 +39,21 @@ export function transferFromPreviewEvent(data) {
     Number.isFinite(previewS) && previewS > 0
       ? previewS * 1000
       : PREVIEW_ANIMATION_MS;
+  const userDurationS = Number(data.duration_s);
+  const simS = Number(data.sim_time_s);
+  const simTimeAtStartS = Number.isFinite(simS) ? simS : null;
   return {
     queueItemId,
     fixtureId,
     userType: String(data.user_type || "pee"),
     startedAt: Date.now(),
+    /** Milliseconds on the sim clock at preview start (sync with `simNowMs`). */
+    simStartMs: simTimeAtStartS != null ? simTimeAtStartS * 1000 : null,
     durationMs,
+    // User's sampled occupancy duration; shown as the static timer
+    // label on the traveling marker so the identity (number + time)
+    // stays consistent from queue -> toilet.
+    userDurationS: Number.isFinite(userDurationS) ? userDurationS : null,
   };
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box } from "@mui/material";
-import PersonIcon from "@mui/icons-material/Person";
+import UsageIcon from "../UsageIcon/UsageIcon";
 import "./AssignmentPreviewOverlay.css";
 
 /**
@@ -63,7 +63,19 @@ function arrowHeadPoints(p) {
   return `${p.endX},${p.endY} ${leftX},${leftY} ${rightX},${rightY}`;
 }
 
-export default function AssignmentPreviewOverlay({ rootRef, pendingTransfers }) {
+export default function AssignmentPreviewOverlay({
+  rootRef,
+  pendingTransfers,
+  /** When set, animation progress uses simulation time (pause = frozen). */
+  simNowMs = null,
+  /**
+   * When true, freeze the CSS slide animation at its current position.
+   * Needed because the keyframe runs on wall-clock time, so just
+   * holding `simNowMs` constant isn't enough to visually pause the
+   * marker — the browser would keep interpolating toward the end.
+   */
+  isPaused = false,
+}) {
   const transfers = useMemo(
     () => (Array.isArray(pendingTransfers) ? pendingTransfers : []),
     [pendingTransfers]
@@ -183,12 +195,16 @@ export default function AssignmentPreviewOverlay({ rootRef, pendingTransfers }) 
         const key = `${t.queueItemId}-${t.fixtureId}`;
         const p = paths[key];
         if (!p) return null;
-        const elapsed = Math.max(0, Date.now() - (t.startedAt || Date.now()));
+        const wall = simNowMs != null ? simNowMs : Date.now();
+        const elapsed =
+          simNowMs != null && t.simStartMs != null
+            ? Math.max(0, simNowMs - t.simStartMs)
+            : Math.max(0, wall - (t.startedAt || wall));
         const remaining = Math.max(0, t.durationMs - elapsed);
         return (
           <Box
             key={`marker-${key}`}
-            className={`assignment-preview-marker assignment-preview-marker--${t.userType}`}
+            className="assignment-preview-marker"
             style={{
               "--preview-start-x": `${p.startX}px`,
               "--preview-start-y": `${p.startY}px`,
@@ -198,9 +214,16 @@ export default function AssignmentPreviewOverlay({ rootRef, pendingTransfers }) 
               // Negative delay skips past any elapsed slice so reloads
               // mid-animation don't restart the icon from the queue.
               "--preview-delay": `${-elapsed}ms`,
+              animationPlayState: isPaused ? "paused" : "running",
             }}
           >
-            <PersonIcon className="assignment-preview-marker__icon" />
+            <UsageIcon
+              variant={t.userType}
+              className="assignment-preview-marker__tile"
+              userNumber={t.queueItemId}
+              durationS={t.userDurationS ?? null}
+              forceLabeled
+            />
           </Box>
         );
       })}

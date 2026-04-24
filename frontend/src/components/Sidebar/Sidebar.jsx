@@ -54,6 +54,7 @@ export default function Sidebar({
   logs,
   onClearLogs,
   onChangeStatus,
+  simulationStatus,
   simulationConfig,
   onSimulationConfigChange,
   onConditionChange,
@@ -73,6 +74,7 @@ export default function Sidebar({
           config={simulationConfig}
           onChange={onSimulationConfigChange}
           onChangeStatus={onChangeStatus}
+          simulationStatus={simulationStatus}
         />
       </SidebarSquare>
 

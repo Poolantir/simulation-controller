@@ -20,6 +20,7 @@ export default function SimulationConfiguration({
   config,
   onChange,
   onChangeStatus,
+  simulationStatus = "paused",
 }) {
   const presetOptions = restroomPresetOptions();
 
@@ -93,7 +94,10 @@ export default function SimulationConfiguration({
       </Box>
 
       {/* Control buttons pinned to bottom */}
-      <SimulationControlButtons onChangeStatus={onChangeStatus} />
+      <SimulationControlButtons
+        onChangeStatus={onChangeStatus}
+        simulationStatus={simulationStatus}
+      />
     </Box>
   );
 }

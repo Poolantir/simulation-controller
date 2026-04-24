@@ -31,8 +31,8 @@
 }
 
 .satisfied-users,
-.total-users,
-.unsatisfied-users {
+.exited-users,
+.total-users {
   font-size: var(--font-size-md) !important;
   color: var(--color-text);
   text-align: left;

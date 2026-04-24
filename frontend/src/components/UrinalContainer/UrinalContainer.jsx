@@ -8,12 +8,20 @@ export default function UrinalContainer({
   id,
   usagePct,
   fillColor = "pee",
+  activeUser = null,
 }) {
   return (
     <Box className="urinal-container">
       <Box className="urinal-container-left">
         <Box className="urinal-container-body">
-          <UsageIcon variant={fillColor} className="urinal-container-fill" />
+          <UsageIcon
+            variant={fillColor}
+            className="urinal-container-fill"
+            userNumber={activeUser?.userNumber ?? null}
+            durationS={activeUser?.durationS ?? null}
+            busyUntilMs={activeUser?.busyUntilMs ?? null}
+            forceLabeled
+          />
           <Urinal id={id} size="large" />
         </Box>
       </Box>

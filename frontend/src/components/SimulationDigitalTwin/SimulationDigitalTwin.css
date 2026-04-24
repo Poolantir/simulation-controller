@@ -56,6 +56,11 @@
 }
 
 .toilet-column {
+  --fixture-scale-x: 0.80;
+  --fixture-scale-y: 0.80;
+  --pct-square-max: clamp(5rem, 12vmin, 10rem);
+  --fixture-fill-size: clamp(2.1rem, 5vmin, 3.6rem);
+  --fixture-label-font: clamp(0.7rem, 1.8vmin, var(--font-size-md));
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -65,8 +70,7 @@
   min-height: 0;
   gap: 0;
   overflow-x: visible;
-  overflow-y: auto;
-  zoom: 1;
+  overflow-y: hidden;
 }
 
 /* Six equal-height rows + hairline seps; absorbs column height */
@@ -74,7 +78,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: min(100%, 32.8125rem);
+  width: 100%;
   max-width: 32.8125rem;
   margin-left: auto;
   flex: 1 1 0;
@@ -95,6 +99,8 @@
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .toilet-column-slot .stall-container,
@@ -102,6 +108,26 @@
   flex: 1 1 0;
   min-height: 0;
   height: auto;
+  flex-shrink: 1;
+  width: 100%;
+}
+
+/* Twin-only: collapse legacy fixed left column so square sits closer. */
+.toilet-column .stall-container,
+.toilet-column .urinal-container {
+  column-gap: var(--space-3);
+}
+
+.toilet-column .stall-container-left,
+.toilet-column .urinal-container-left {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.toilet-column .stall-container-body,
+.toilet-column .urinal-container-body {
+  gap: var(--space-3);
+  padding-right: var(--space-3);
 }
 
 /* Non-Existent slot: blank space; row keeps its height so separators stay aligned. */
@@ -135,23 +161,45 @@
   text-transform: uppercase;
 }
 
-/* Square % tile (not stretched to row height); centered in tall rows */
+/*
+ * Square: side = min(row height, cap). When capped shorter than row,
+ * align-self: stretch + max-height behaves like flex-start in browsers
+ * → square hugged top, icons stay centered in left column → mismatch.
+ * align-self: center fixes vertical alignment with toilet row.
+ */
 .toilet-column .usage-square {
-  width: 9.0625rem;
-  aspect-ratio: 1;
-  height: auto;
   align-self: center;
+  height: min(100%, var(--pct-square-max, 10rem));
+  width: auto;
+  aspect-ratio: 1;
   flex-shrink: 0;
+  max-height: var(--pct-square-max, 10rem);
+  /* Square must hug right edge; no dead space after shrink. */
+  margin-left: auto;
 }
 
 .toilet-column .usage-square-text {
-  font-size: clamp(1.125rem, 3.2vmin, 2.25rem) !important;
+  font-size: clamp(1rem, 2.6vmin, 2.25rem) !important;
 }
 
+/* Fixture usage fill sizing inside twin. */
 .toilet-column .stall-container-fill,
 .toilet-column .urinal-container-fill {
-  width: clamp(5rem, 11vmin, 8.5rem);
-  height: clamp(5rem, 11vmin, 8.5rem);
+  width: var(--fixture-fill-size);
+  height: var(--fixture-fill-size);
+}
+
+/* Keep labeled text readable after scaling. */
+.toilet-column .usage-icon-number,
+.toilet-column .usage-icon-timer {
+  font-size: var(--fixture-label-font);
+}
+
+/* Scale toilet artwork itself (stall/urinal) so it never looks crammed. */
+.toilet-column .stall,
+.toilet-column .urinal {
+  transform: scale(var(--fixture-scale-x), var(--fixture-scale-y));
+  transform-origin: center;
 }
 
 /*
@@ -159,7 +207,7 @@
  * Stall: full row width. Urinal: inset start under fixtures, then spans to % square right edge.
  */
 .toilet-column-separator {
-  height: 0.1875rem;
+  height: 0.125rem;
   flex-shrink: 0;
   border: none;
   margin: 0;
@@ -180,20 +228,18 @@
   box-sizing: border-box;
 }
 
-@media (min-height: 900px) {
-  .toilet-column { zoom: 1.05; }
+@media (max-height: 850px) {
+  .toilet-column {
+    --fixture-scale-x: 0.24;
+    --fixture-scale-y: 0.19;
+  }
 }
+
 @media (min-height: 1080px) {
-  .toilet-column { zoom: 1.12; }
-}
-@media (max-height: 800px) {
-  .toilet-column { zoom: 0.82; }
-}
-@media (max-height: 680px) {
-  .toilet-column { zoom: 0.72; }
-}
-@media (max-height: 560px) {
-  .toilet-column { zoom: 0.62; }
+  .toilet-column {
+    --fixture-scale-x: 0.36;
+    --fixture-scale-y: 0.29;
+  }
 }
 
 /* Ultra-wide: slightly larger padding/gap so the twin pane breathes */

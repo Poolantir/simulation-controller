@@ -48,8 +48,23 @@ export function setSchedulerMode(mode) {
   return postJson("/api/scheduler/mode", { mode });
 }
 
+/** Play / Pause for Dummy mode (backend sim clock + queue). */
+export function setSimRuntime(runtime) {
+  return postJson("/api/scheduler/sim_runtime", { runtime });
+}
+
 export function enqueueUser(type) {
   return postJson("/api/scheduler/enqueue", { type });
+}
+
+/**
+ * Ask the backend for a freshly sampled occupancy duration for a
+ * given user type, without enqueuing anything. Used by SIM mode so
+ * locally-managed queue items still get backend-authoritative timer
+ * labels. Returns `{ok, duration_s}` on success.
+ */
+export function sampleUserDuration(type) {
+  return postJson("/api/scheduler/sample_duration", { type });
 }
 
 export function clearSchedulerQueue() {
@@ -90,12 +105,14 @@ export function getSchedulerState() {
 const SCHEDULER_EVENT_NAMES = [
   "scheduler_state",
   "queue_updated",
+  "queue_item_exited",
   "assignment_preview",
   "assignment_preview_cancelled",
   "assignment_started",
   "assignment_completed",
   "mode_changed",
   "config_updated",
+  "sim_runtime_changed",
   "reset",
 ];
 
@@ -163,7 +180,13 @@ export function schedulerSnapshotToFrontendState(snap) {
   const stalls = [];
   const urinals = [];
   const pendingTransfers = [];
+  const activeFixtureUsers = {};
   const nowServer = Number(snap.now);
+  // Server -> client clock skew. The server emits `busy_until` in
+  // its own wall-clock; convert to the client's `Date.now()` frame so
+  // the countdown component can just do `deadline - Date.now()`.
+  const skewMs =
+    Number.isFinite(nowServer) ? Date.now() - nowServer * 1000 : 0;
   for (const f of fixtures) {
     const id = Number(f?.id);
     if (!Number.isInteger(id)) continue;
@@ -182,28 +205,71 @@ export function schedulerSnapshotToFrontendState(snap) {
       else urinals.push({ id, usagePct: 0, outOfOrder: false });
     }
 
+    if (inUse) {
+      const busyUntilServer = Number(f?.busy_until);
+      const qid = Number(f?.current_queue_item_id);
+      const durationS = Number(f?.current_duration_s);
+      const occR = Number(f?.occupancy_remaining_s);
+      let busyUntilMs = null;
+      if (Number.isFinite(busyUntilServer)) {
+        busyUntilMs = busyUntilServer * 1000 + skewMs;
+      } else if (Number.isFinite(occR) && occR >= 0) {
+        // Paused: show remaining s as a static label (no wall deadline).
+        busyUntilMs = null;
+      }
+      activeFixtureUsers[id] = {
+        fixtureId: id,
+        userNumber: Number.isInteger(qid) ? qid : null,
+        userType: String(f?.current_user_type || "pee"),
+        durationS: Number.isFinite(occR) && !Number.isFinite(busyUntilServer)
+          ? occR
+          : Number.isFinite(durationS)
+            ? durationS
+            : null,
+        busyUntilMs,
+      };
+    }
+
     if (f?.reserved) {
       const qid = Number(f?.reserved_queue_item_id);
       const reservedUntil = Number(f?.reserved_until);
+      const prPrev = Number(f?.preview_remaining_s);
+      const reservedDurationS = Number(f?.reserved_duration_s);
+      const pss = Number(f?.preview_started_sim_s);
       // Convert "reservation ends at server-now offset" into the
       // remaining animation budget on the client. Fall back to 3s
       // so a slightly stale snapshot still produces a visible arrow.
       const remainingMs =
         Number.isFinite(reservedUntil) && Number.isFinite(nowServer)
           ? Math.max(0, (reservedUntil - nowServer) * 1000)
+          : Number.isFinite(prPrev) && prPrev >= 0
+          ? prPrev * 1000
           : 3000;
       pendingTransfers.push({
         queueItemId: Number.isInteger(qid) ? qid : null,
         fixtureId: id,
         userType: String(f?.reserved_user_type || "pee"),
         startedAt: Date.now(),
+        simStartMs: Number.isFinite(pss) ? pss * 1000 : null,
         durationMs: remainingMs,
+        userDurationS: Number.isFinite(reservedDurationS)
+          ? reservedDurationS
+          : null,
       });
     }
   }
 
   const queue = Array.isArray(snap.queue)
-    ? snap.queue.map((q) => ({ id: Number(q.id), type: String(q.type) }))
+    ? snap.queue.map((q) => {
+        const durationS = Number(q?.duration_s);
+        const enqueuedAtSimS = Number(q?.enqueued_at_sim_s);
+        return {
+          id: Number(q.id),
+          type: String(q.type),
+          durationS: Number.isFinite(durationS) ? durationS : null,
+          enqueuedAtSimS: Number.isFinite(enqueuedAtSimS) ? enqueuedAtSimS : 0,
+        };
+      })
     : [];
 
   return {
@@ -212,7 +278,12 @@ export function schedulerSnapshotToFrontendState(snap) {
     stalls,
     urinals,
     pendingTransfers,
+    activeFixtureUsers,
     satisfiedUsers: Number(snap.satisfied_users ?? 0),
+    exitedUsers: Number(snap.exited_users ?? 0),
+    totalArrivals: Number(snap.total_arrivals ?? 0),
+    simTimeS: Number(snap.sim_time_s ?? 0),
+    runtime: snap.runtime ?? "paused",
     startedAt: snap.started_at ?? null,
     now: snap.now ?? null,
   };

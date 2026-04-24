@@ -1,8 +1,9 @@
 @import "../../styles.css";
 
 .usage-square {
-  width: 9.0625rem;   /* 145px */
-  height: 9.0625rem;
+  /* Default 145px; parents can override via --usage-square-size. */
+  width: var(--usage-square-size, 9.0625rem);
+  height: var(--usage-square-size, 9.0625rem);
   background-color: var(--color-gray-100);
   border-radius: var(--radius-md);
   display: flex;

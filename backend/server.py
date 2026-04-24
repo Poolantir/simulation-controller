@@ -21,7 +21,11 @@ from flask_cors import CORS
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from ble_manager import BleManager  # noqa: E402
-from scheduler import Scheduler, VALID_MODES  # noqa: E402
+from scheduler import (  # noqa: E402
+    API_SIM_USER_RUNTIMES,
+    Scheduler,
+    VALID_MODES,
+)
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -134,6 +138,23 @@ def scheduler_state() -> Any:
     return jsonify(ok=True, state=scheduler.snapshot())
 
 
+@app.route("/api/scheduler/sim_runtime", methods=["POST"])
+def scheduler_sim_runtime() -> Any:
+    """Play / Pause for Dummy mode (see `Scheduler.set_sim_runtime`)."""
+    payload = request.get_json(silent=True) or {}
+    rt = str(payload.get("runtime", "")).lower()
+    if rt not in API_SIM_USER_RUNTIMES:
+        return (
+            jsonify(
+                ok=False, error=f"runtime must be one of {list(API_SIM_USER_RUNTIMES)}"
+            ),
+            400,
+        )
+    result = scheduler.set_sim_runtime(rt)
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
 @app.route("/api/scheduler/mode", methods=["POST"])
 def scheduler_mode() -> Any:
     payload = request.get_json(silent=True) or {}
@@ -169,6 +190,21 @@ def scheduler_enqueue() -> Any:
     payload = request.get_json(silent=True) or {}
     user_type = str(payload.get("type", "")).lower()
     result = scheduler.enqueue(user_type)
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/scheduler/sample_duration", methods=["POST"])
+def scheduler_sample_duration() -> Any:
+    """Sample a pee/poo duration without enqueuing anyone.
+
+    Used by non-Dummy modes (SIM) so queued users can be labeled with
+    backend-authoritative per-user durations that match the Dummy
+    scheduler's sampling distribution.
+    """
+    payload = request.get_json(silent=True) or {}
+    user_type = str(payload.get("type", "")).lower()
+    result = scheduler.sample_duration(user_type)
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 

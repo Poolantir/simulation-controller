@@ -157,6 +157,23 @@
   transition: opacity var(--transition-fast);
 }
 
+/* About to be removed (queue wait exceeded). */
+.queue-block--expiring {
+  animation: queue-block-expire-flash 0.2s ease-in-out 2;
+}
+
+@keyframes queue-block-expire-flash {
+  0%,
+  100% {
+    background-color: var(--color-yellow-light);
+    box-shadow: none;
+  }
+  50% {
+    background-color: #ffcccc;
+    box-shadow: 0 0 0 0.2rem #cc5555;
+  }
+}
+
 .queue-total {
   flex-shrink: 0;
   margin: 0 !important;

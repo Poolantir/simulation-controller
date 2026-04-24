@@ -23,18 +23,14 @@
 
 /* Same border / surface treatment as "+1 Cleanliness to All" (`.condition-batch-btn`) */
 .control-btn-start,
-.control-btn-pause,
-.control-btn-stop,
-.control-btn-replay {
+.control-btn-pause {
   background-color: var(--color-gray-100) !important;
   color: var(--color-gray-700) !important;
   border-color: var(--color-gray-500) !important;
 }
 
 .control-btn-start:hover,
-.control-btn-pause:hover,
-.control-btn-stop:hover,
-.control-btn-replay:hover {
+.control-btn-pause:hover {
   background-color: var(--color-gray-200) !important;
   border-color: var(--color-gray-600) !important;
   color: var(--color-gray-700) !important;
@@ -42,11 +38,30 @@
 
 .control-btn-start.Mui-focusVisible,
 .control-btn-pause.Mui-focusVisible,
-.control-btn-stop.Mui-focusVisible,
-.control-btn-replay.Mui-focusVisible,
 .control-btn-start:focus-visible,
-.control-btn-pause:focus-visible,
-.control-btn-stop:focus-visible,
-.control-btn-replay:focus-visible {
+.control-btn-pause:focus-visible {
   border-color: var(--color-gray-600) !important;
+}
+
+/* Running: play highlights green; Paused: pause highlights red */
+.control-btn--active {
+  background-color: #e8f5e9 !important;
+  color: #1b5e20 !important;
+  border-color: #2e7d32 !important;
+}
+.control-btn--active:hover {
+  background-color: #c8e6c9 !important;
+  border-color: #1b5e20 !important;
+  color: #0d3d10 !important;
+}
+
+.control-btn--active-pause {
+  background-color: #ffebee !important;
+  color: #b71c1c !important;
+  border-color: #c62828 !important;
+}
+.control-btn--active-pause:hover {
+  background-color: #ffcdd2 !important;
+  border-color: #b71c1c !important;
+  color: #7f0000 !important;
 }

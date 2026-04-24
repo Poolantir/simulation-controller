@@ -34,3 +34,39 @@
 .usage-icon-poo .usage-icon-person {
   color: var(--color-brown-dark) !important;
 }
+
+/* Label mode: number stacked over small timer label. Shared layout
+ * for queue tiles, traveling preview markers, and in-use fixture
+ * fills — the parent className still dictates the box size via the
+ * usual `.queue-block` / `.stall-container-fill` / etc. sizing. */
+.usage-icon--labeled {
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.25rem;
+  line-height: 1;
+  font-family: var(--font-family-base, inherit);
+}
+
+.usage-icon-number {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+  line-height: 1;
+}
+
+.usage-icon-timer {
+  font-weight: var(--font-weight-regular);
+  font-size: var(--font-size-md);
+  line-height: 1;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-icon-pee .usage-icon-number,
+.usage-icon-pee .usage-icon-timer {
+  color: var(--color-brown-mid);
+}
+
+.usage-icon-poo .usage-icon-number,
+.usage-icon-poo .usage-icon-timer {
+  color: var(--color-brown-dark);
+}

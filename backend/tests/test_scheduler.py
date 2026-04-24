@@ -20,8 +20,12 @@ if BACKEND not in sys.path:
 
 import scheduler as scheduler_module  # noqa: E402
 from scheduler import (  # noqa: E402
+    API_SIM_USER_RUNTIMES,
     MODE_DUMMY,
     MODE_SIM,
+    RUNTIME_PAUSED,
+    RUNTIME_RUNNING,
+    RUNTIME_STOPPED,
     Scheduler,
 )
 
@@ -63,6 +67,7 @@ class SchedulerLifecycleTests(unittest.TestCase):
             shy_peer_pct=50.0,
             middle_toilet_first_choice_pct=2.0,
         )
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
         self.sched.start()
 
     def tearDown(self):
@@ -171,6 +176,37 @@ class SchedulerLifecycleTests(unittest.TestCase):
                 timeout=1.0,
             )
         )
+
+    def test_api_sim_user_runtimes_excludes_stopped(self):
+        self.assertIn(RUNTIME_RUNNING, API_SIM_USER_RUNTIMES)
+        self.assertIn(RUNTIME_PAUSED, API_SIM_USER_RUNTIMES)
+        self.assertNotIn(RUNTIME_STOPPED, API_SIM_USER_RUNTIMES)
+
+    def test_enqueue_succeeds_while_paused(self):
+        self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        r = self.sched.enqueue("pee")
+        self.assertTrue(r.get("ok"), msg=r.get("error"))
+        self.assertEqual(len(self.sched.snapshot()["queue"]), 1)
+
+    def test_enqueue_succeeds_while_stopped(self):
+        self.sched.set_sim_runtime(RUNTIME_STOPPED)
+        r = self.sched.enqueue("pee")
+        self.assertTrue(r.get("ok"), msg=r.get("error"))
+        self.assertEqual(len(self.sched.snapshot()["queue"]), 1)
+
+    def test_sim_time_does_not_advance_while_paused(self):
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        t0 = self.sched.snapshot()["sim_time_s"]
+        self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        time.sleep(0.35)
+        t1 = self.sched.snapshot()["sim_time_s"]
+        self.assertEqual(t0, t1)
+
+    def test_clear_queue_while_paused(self):
+        self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        self.assertTrue(self.sched.enqueue("pee").get("ok"))
+        self.assertTrue(self.sched.clear_queue().get("ok"))
+        self.assertEqual(self.sched.snapshot()["queue"], [])
 
     def test_clear_queue_cancels_reservations(self):
         self.sched.enqueue("pee")
@@ -329,6 +365,98 @@ class SchedulerLifecycleTests(unittest.TestCase):
         self.assertEqual(snap["mode"], MODE_SIM)
         self.assertEqual(snap["queue"], [])
         self.assertTrue(all(not f["in_use"] for f in snap["fixtures"]))
+
+    # -- play/pause/reset lifecycle (regression for Play/Pause drift) --
+
+    def test_pause_freezes_active_occupancy(self):
+        """Pausing mid-occupancy must snapshot remaining seconds and
+        clear `busy_until`, so wall-clock time does not elapse while
+        paused."""
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    f["in_use"] for f in self.sched.snapshot()["fixtures"]
+                ),
+                timeout=1.5,
+            )
+        )
+        r = self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        self.assertTrue(r.get("ok"), msg=r.get("error"))
+        snap = self.sched.snapshot()
+        in_use = [f for f in snap["fixtures"] if f["in_use"]]
+        self.assertEqual(len(in_use), 1)
+        f = in_use[0]
+        self.assertIsNone(f["busy_until"])
+        self.assertIsNotNone(f["occupancy_remaining_s"])
+        self.assertGreater(f["occupancy_remaining_s"], 0)
+
+    def test_pause_freezes_preview(self):
+        """Pausing during the preview window must snapshot remaining
+        preview seconds and clear `reserved_until`."""
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_preview" for ev, _ in self.events
+                )
+            )
+        )
+        self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        snap = self.sched.snapshot()
+        reserved = [f for f in snap["fixtures"] if f["reserved"]]
+        self.assertEqual(len(reserved), 1)
+        f = reserved[0]
+        self.assertIsNone(f["reserved_until"])
+        self.assertIsNotNone(f["preview_remaining_s"])
+        self.assertGreaterEqual(f["preview_remaining_s"], 0)
+
+    def test_resume_preserves_sim_time_and_counters(self):
+        """Running -> pause -> running must preserve sim_time and
+        satisfied-user counters across the transition."""
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: self.sched.snapshot()["satisfied_users"] >= 1,
+                timeout=2.0,
+            )
+        )
+        snap_before = self.sched.snapshot()
+        sat_before = snap_before["satisfied_users"]
+        sim_before = snap_before["sim_time_s"]
+        self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        time.sleep(0.3)
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        snap_after = self.sched.snapshot()
+        self.assertEqual(snap_after["satisfied_users"], sat_before)
+        # Sim time should be at-least as before; but must not have
+        # advanced during the 0.3s pause.
+        self.assertGreaterEqual(snap_after["sim_time_s"], sim_before)
+        self.assertLess(snap_after["sim_time_s"], sim_before + 0.3)
+
+    def test_reset_while_running_clears_state_and_pauses(self):
+        """Reset mid-run must clear queue/fixtures/counters, zero
+        sim_time, and leave runtime in PAUSED so the next Play starts
+        from a clean slate."""
+        for _ in range(3):
+            self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_started" for ev, _ in self.events
+                )
+            )
+        )
+        self.sched.reset()
+        snap = self.sched.snapshot()
+        self.assertEqual(snap["queue"], [])
+        self.assertEqual(snap["satisfied_users"], 0)
+        self.assertEqual(snap["exited_users"], 0)
+        self.assertEqual(snap["total_arrivals"], 0)
+        self.assertEqual(snap["sim_time_s"], 0.0)
+        self.assertEqual(snap["runtime"], RUNTIME_PAUSED)
+        self.assertTrue(all(not f["in_use"] for f in snap["fixtures"]))
+        self.assertTrue(all(not f["reserved"] for f in snap["fixtures"]))
 
 
 if __name__ == "__main__":

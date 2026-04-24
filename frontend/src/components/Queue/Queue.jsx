@@ -9,6 +9,7 @@ export default function Queue({
   onAddPoo,
   onClearQueue,
   pendingTransferIds,
+  canAddUsers = true,
 }) {
   const total = queue.length;
   const leavingIds = pendingTransferIds instanceof Set
@@ -25,6 +26,7 @@ export default function Queue({
             type="button"
             className="queue-action-btn queue-action-pee"
             onClick={onAddPee}
+            disabled={!canAddUsers}
             aria-label="Add pee"
             size="medium"
           >
@@ -34,6 +36,7 @@ export default function Queue({
             type="button"
             className="queue-action-btn queue-action-poo"
             onClick={onAddPoo}
+            disabled={!canAddUsers}
             aria-label="Add poo"
             size="medium"
           >
@@ -57,6 +60,8 @@ export default function Queue({
             const leaving = leavingIds.has(item.id);
             const classes = ["queue-block"];
             if (leaving) classes.push("queue-block--leaving");
+            if (item.exitState === "expiring")
+              classes.push("queue-block--expiring");
             return (
               <Box
                 key={item.id}
@@ -66,6 +71,9 @@ export default function Queue({
                 <UsageIcon
                   variant={item.type}
                   className={classes.join(" ")}
+                  userNumber={item.id}
+                  durationS={item.durationS ?? null}
+                  forceLabeled
                 />
               </Box>
             );

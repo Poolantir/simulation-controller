@@ -25,8 +25,10 @@ import {
   enqueueUser,
   openSchedulerStream,
   resetScheduler,
+  sampleUserDuration,
   schedulerSnapshotToFrontendState,
   setSchedulerMode,
+  setSimRuntime,
   updateSchedulerConfig,
 } from "./lib/schedulerApi";
 import { transferFromPreviewEvent } from "./lib/assignmentPreview";
@@ -39,10 +41,18 @@ const theme = createTheme({
   },
 });
 
-const INITIAL_ELAPSED_TIME_TEXT = "Simulation Time Elapsed: 0min";
 const INITIAL_SATISFIED_USERS = 0;
-const INITIAL_USERS_ENTERED = 0;
 const NODE_COUNT = 6;
+const QUEUE_WAIT_MS = 10000;
+const EXIT_FLASH_MS = 600;
+
+function formatSimElapsed(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "0s";
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  if (m === 0) return `${s}s`;
+  return `${m}m ${s}s`;
+}
 const APP_MODE_SIM = "SIM";
 const APP_MODE_TEST = "TEST";
 const APP_MODE_DUMMY = "DUMMY";
@@ -80,12 +90,15 @@ const EMPTY_DUMMY_FIXTURES = {
 let nextQueueId = 1;
 
 export default function App() {
-  const [, setSimulationStatus] = useState("stopped");
+  const [simulationStatus, setSimulationStatus] = useState("paused");
   const [simulationConfig, setSimulationConfig] = useState(() => ({
     ...INITIAL_SIM_CONFIG,
   }));
   const [queue, setQueue] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [simElapsedMs, setSimElapsedMs] = useState(0);
+  const [simExitedUsers, setSimExitedUsers] = useState(0);
+  const [simTotalArrivals, setSimTotalArrivals] = useState(0);
   const initialFixtures = useMemo(
     () => buildInitialRestroomState(DEFAULT_RESTROOM_PRESET),
     []
@@ -95,11 +108,7 @@ export default function App() {
   );
   const [stalls, setStalls] = useState(() => initialFixtures.stalls);
   const [urinals, setUrinals] = useState(() => initialFixtures.urinals);
-  const [elapsedTimeText, setElapsedTimeText] = useState(
-    INITIAL_ELAPSED_TIME_TEXT
-  );
   const [satisfiedUsers, setSatisfiedUsers] = useState(INITIAL_SATISFIED_USERS);
-  const [simUsersEntered, setSimUsersEntered] = useState(INITIAL_USERS_ENTERED);
   const [appMode, setAppMode] = useState(APP_MODE_SIM);
   const [behavioralModelOpen, setBehavioralModelOpen] = useState(false);
   const [nodeConnections, setNodeConnections] = useState(() =>
@@ -115,13 +124,21 @@ export default function App() {
     EMPTY_DUMMY_FIXTURES.urinals
   );
   const [dummySatisfiedUsers, setDummySatisfiedUsers] = useState(0);
-  const [dummyUsersEntered, setDummyUsersEntered] = useState(0);
+  const [dummyExitedUsers, setDummyExitedUsers] = useState(0);
+  const [dummyTotalArrivals, setDummyTotalArrivals] = useState(0);
+  const [dummySimTimeMs, setDummySimTimeMs] = useState(0);
   // Active queue -> toilet preview animations (3 s each). Keyed by
   // (queueItemId, fixtureId) so a fixture can only host one preview.
   // Hydrated from the SSE stream's `assignment_preview` events and
   // cleared on `assignment_started` / `assignment_preview_cancelled` /
   // snapshot replacement.
   const [pendingTransfers, setPendingTransfers] = useState([]);
+  // Per-fixture record of which queued user is currently occupying
+  // it, plus their sampled duration and absolute busy-until deadline
+  // (client-clock ms). Drives the numbered + countdown tile rendered
+  // inside each active stall/urinal. Only populated in Dummy Mode
+  // since SIM mode has no scheduler-driven assignment flow.
+  const [activeFixtureUsers, setActiveFixtureUsers] = useState({});
 
   // Keep a ref of current appMode for async callbacks that mustn't
   // capture a stale value (SSE handlers and log emitters).
@@ -129,6 +146,95 @@ export default function App() {
   useEffect(() => {
     appModeRef.current = appMode;
   }, [appMode]);
+  const simulationStatusRef = useRef(simulationStatus);
+  /** First Play after load/reset should clear SIM counters like stopped→running. */
+  const simNeedsPlayResetRef = useRef(true);
+  // True once Play has been pressed since load/reset. Drives
+  // "labels empty before first play" per spec state 1 / 5.
+  const [hasPlayedSession, setHasPlayedSession] = useState(false);
+  useEffect(() => {
+    simulationStatusRef.current = simulationStatus;
+  }, [simulationStatus]);
+
+  const handleSimulationStatus = useCallback(async (status) => {
+    simulationStatusRef.current = status;
+    setSimulationStatus(status);
+    if (status === "running") setHasPlayedSession(true);
+
+    if (appModeRef.current === APP_MODE_DUMMY) {
+      if (status === "running") {
+        await setSimRuntime("running");
+      } else if (status === "paused") {
+        await setSimRuntime("paused");
+      }
+      return;
+    }
+
+    if (status === "running" && simNeedsPlayResetRef.current) {
+      setSimElapsedMs(0);
+      setSatisfiedUsers(0);
+      setSimExitedUsers(0);
+      setStalls((s) => s.map((x) => ({ ...x, usagePct: 0 })));
+      setUrinals((u) => u.map((x) => ({ ...x, usagePct: 0 })));
+      simNeedsPlayResetRef.current = false;
+    }
+    if (status === "stopped") {
+      simNeedsPlayResetRef.current = true;
+      setQueue([]);
+      setStalls((s) => s.map((x) => ({ ...x, usagePct: 0 })));
+      setUrinals((u) => u.map((x) => ({ ...x, usagePct: 0 })));
+    }
+  }, []);
+
+  const simElapsedMsRef = useRef(0);
+  useEffect(() => {
+    simElapsedMsRef.current = simElapsedMs;
+  }, [simElapsedMs]);
+
+  useEffect(() => {
+    if (appMode !== APP_MODE_SIM || simulationStatus !== "running")
+      return undefined;
+    const id = setInterval(() => {
+      setSimElapsedMs((ms) => ms + 100);
+    }, 100);
+    return () => clearInterval(id);
+  }, [appMode, simulationStatus]);
+
+  useEffect(() => {
+    if (appMode !== APP_MODE_SIM || simulationStatus !== "running")
+      return undefined;
+    const id = setInterval(() => {
+      setQueue((prev) => {
+        const t = Date.now();
+        let exitedAdd = 0;
+        const simNow = simElapsedMsRef.current;
+        const next = [];
+        for (const item of prev) {
+          if (item.exitState === "expiring") {
+            if (item.removeAfter != null && t >= item.removeAfter) {
+              exitedAdd += 1;
+              continue;
+            }
+            next.push(item);
+            continue;
+          }
+          const at = item.enqueuedAtSimMs ?? 0;
+          if (simNow - at > QUEUE_WAIT_MS) {
+            next.push({
+              ...item,
+              exitState: "expiring",
+              removeAfter: t + EXIT_FLASH_MS,
+            });
+          } else {
+            next.push(item);
+          }
+        }
+        if (exitedAdd) setSimExitedUsers((x) => x + exitedAdd);
+        return next;
+      });
+    }, 200);
+    return () => clearInterval(id);
+  }, [appMode, simulationStatus, simElapsedMs]);
 
   useEffect(() => {
     const close = openNodeStatusStream(
@@ -156,20 +262,68 @@ export default function App() {
     const applySnapshot = (snap) => {
       const mapped = schedulerSnapshotToFrontendState(snap);
       if (!mapped) return;
-      setDummyQueue(mapped.queue);
+      // Keep any per-item durationS we've already seen for this queue
+      // item — older backends don't include `duration_s` on the queue
+      // payload, but once we have a value it's stable for that user.
+      setDummyQueue((prev) => {
+        const prevById = new Map(prev.map((x) => [x.id, x]));
+        return mapped.queue.map((q) => {
+          const prior = prevById.get(q.id);
+          if (prior && q.durationS == null && prior.durationS != null) {
+            return { ...q, durationS: prior.durationS };
+          }
+          return q;
+        });
+      });
       setDummyStalls(mapped.stalls);
       setDummyUrinals(mapped.urinals);
       setDummySatisfiedUsers(mapped.satisfiedUsers);
+      setDummyExitedUsers(
+        Number.isFinite(mapped.exitedUsers) ? mapped.exitedUsers : 0
+      );
+      setDummyTotalArrivals(
+        Number.isFinite(mapped.totalArrivals) ? mapped.totalArrivals : 0
+      );
+      if (Number.isFinite(mapped.simTimeS)) {
+        setDummySimTimeMs(mapped.simTimeS * 1000);
+      }
+      // NOTE: we intentionally do NOT mirror `mapped.runtime` into
+      // `simulationStatus`. The Play/Pause button is the source of
+      // truth for UI intent; piping stale scheduler_state snapshots
+      // back into status caused click-Play-then-flip-to-Pause races
+      // when a snapshot emitted before the POST completed arrived on
+      // the SSE stream. Backend runtime is kept in sync via the
+      // `handleSimulationStatus`/`handleAppModeChange` POSTs instead.
+      // Snapshot is authoritative for in-use fixtures. Only preserve
+      // prior identity fields (userNumber / userType) as fallbacks in
+      // case the snapshot omitted them. `busyUntilMs` and `durationS`
+      // are taken from the snapshot as-is: pausing the simulation
+      // means backend sends `busyUntilMs=null` + remaining seconds on
+      // `durationS`, and a ??-fallback would keep the old future
+      // deadline and the UI would keep counting down past pause.
+      setActiveFixtureUsers((prev) => {
+        const next = { ...prev };
+        const snapUsers = mapped.activeFixtureUsers || {};
+        const inUseIds = new Set(
+          Object.keys(snapUsers).map((k) => Number(k))
+        );
+        for (const idStr of Object.keys(prev)) {
+          if (!inUseIds.has(Number(idStr))) delete next[idStr];
+        }
+        for (const [idStr, u] of Object.entries(snapUsers)) {
+          const prior = prev[idStr] || {};
+          next[idStr] = {
+            ...u,
+            userNumber: u.userNumber ?? prior.userNumber ?? null,
+            userType: u.userType || prior.userType || "pee",
+          };
+        }
+        return next;
+      });
       // Hydrate preview animations from the authoritative snapshot so
       // a page refresh in the middle of a preview still shows arrows.
       setPendingTransfers(
         Array.isArray(mapped.pendingTransfers) ? mapped.pendingTransfers : []
-      );
-      const active = [...mapped.stalls, ...mapped.urinals].filter(
-        (f) => Number(f?.usagePct) > 0
-      ).length;
-      setDummyUsersEntered((prev) =>
-        Math.max(prev, mapped.satisfiedUsers + mapped.queue.length + active)
       );
     };
     const close = openSchedulerStream((event, data) => {
@@ -180,9 +334,23 @@ export default function App() {
       }
       if (event === "queue_updated") {
         const q = Array.isArray(data?.queue) ? data.queue : [];
-        setDummyQueue(
-          q.map((x) => ({ id: Number(x.id), type: String(x.type) }))
-        );
+        setDummyQueue((prev) => {
+          const prevById = new Map(prev.map((x) => [x.id, x]));
+          return q.map((x) => {
+            const id = Number(x.id);
+            const d = Number(x?.duration_s);
+            const eas = Number(x?.enqueued_at_sim_s);
+            const prior = prevById.get(id);
+            return {
+              id,
+              type: String(x.type),
+              enqueuedAtSimS: Number.isFinite(eas) ? eas : prior?.enqueuedAtSimS ?? 0,
+              durationS: Number.isFinite(d)
+                ? d
+                : prior?.durationS ?? null,
+            };
+          });
+        });
         return;
       }
       if (event === "assignment_preview") {
@@ -234,6 +402,27 @@ export default function App() {
         setPendingTransfers((prev) =>
           prev.filter((t) => t.fixtureId !== fid)
         );
+        const qid = Number(data?.queue_item_id);
+        const dur = Number(data?.duration_s);
+        const busyUntilServer = Number(data?.busy_until);
+        // `busy_until` is server wall-clock seconds. Convert to client
+        // `Date.now()` ms, falling back to "now + duration" if the
+        // event omitted either field so the countdown still runs.
+        const busyUntilMs = Number.isFinite(busyUntilServer)
+          ? busyUntilServer * 1000
+          : Number.isFinite(dur)
+          ? Date.now() + dur * 1000
+          : null;
+        setActiveFixtureUsers((prev) => ({
+          ...prev,
+          [fid]: {
+            fixtureId: fid,
+            userNumber: Number.isInteger(qid) ? qid : null,
+            userType: String(data?.user_type || "pee"),
+            durationS: Number.isFinite(dur) ? dur : null,
+            busyUntilMs,
+          },
+        }));
         if (appModeRef.current === APP_MODE_DUMMY) {
           const kind = data?.fixture_kind || "fixture";
           const u = data?.user_type || "user";
@@ -255,6 +444,11 @@ export default function App() {
           );
         setDummyStalls(updater);
         setDummyUrinals(updater);
+        setActiveFixtureUsers((prev) => {
+          if (!(fid in prev)) return prev;
+          const { [fid]: _removed, ...rest } = prev;
+          return rest;
+        });
         if (Number.isFinite(Number(data?.satisfied_users))) {
           setDummySatisfiedUsers(Number(data.satisfied_users));
         }
@@ -272,8 +466,9 @@ export default function App() {
         setDummyStalls(EMPTY_DUMMY_FIXTURES.stalls);
         setDummyUrinals(EMPTY_DUMMY_FIXTURES.urinals);
         setDummySatisfiedUsers(0);
-        setDummyUsersEntered(0);
+        setDummyTotalArrivals(0);
         setPendingTransfers([]);
+        setActiveFixtureUsers({});
       }
     });
     return close;
@@ -399,39 +594,65 @@ export default function App() {
     }));
   };
 
+  /**
+   * Append a SIM-mode queue item with a backend-sampled duration so
+   * the tile's timer label matches Dummy Mode's distribution. The
+   * tile is inserted optimistically with `durationS: null`; once the
+   * round-trip returns the duration is patched in. If the request
+   * fails the label simply stays blank (user is still usable).
+   */
+  const canMutateActiveQueue = () => {
+    const s = simulationStatusRef.current;
+    return (
+      s === "running" || s === "paused" || s === "stopped"
+    );
+  };
+
+  const addSimQueueItem = (type) => {
+    if (!canMutateActiveQueue()) return;
+    const id = nextQueueId++;
+    setSimTotalArrivals((prev) => prev + 1);
+    setQueue((prev) => [
+      {
+        id,
+        type,
+        durationS: null,
+        enqueuedAtSimMs: simElapsedMsRef.current,
+      },
+      ...prev,
+    ]);
+    sampleUserDuration(type).then((result) => {
+      const d = Number(result?.data?.duration_s);
+      if (!result?.ok || !Number.isFinite(d)) return;
+      setQueue((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, durationS: d } : item))
+      );
+    });
+  };
+
   const handleAddPee = () => {
+    if (!canMutateActiveQueue()) return;
     if (appModeRef.current === APP_MODE_DUMMY) {
-      enqueueUser("pee").then((result) => {
-        if (result?.ok) {
-          setDummyUsersEntered((prev) => prev + 1);
-        }
-      });
+      enqueueUser("pee");
       return;
     }
-    setSimUsersEntered((prev) => prev + 1);
-    setQueue((prev) => [{ id: nextQueueId++, type: "pee" }, ...prev]);
+    addSimQueueItem("pee");
   };
 
   const handleAddPoo = () => {
+    if (!canMutateActiveQueue()) return;
     if (appModeRef.current === APP_MODE_DUMMY) {
-      enqueueUser("poo").then((result) => {
-        if (result?.ok) {
-          setDummyUsersEntered((prev) => prev + 1);
-        }
-      });
+      enqueueUser("poo");
       return;
     }
-    setSimUsersEntered((prev) => prev + 1);
-    setQueue((prev) => [{ id: nextQueueId++, type: "poo" }, ...prev]);
+    addSimQueueItem("poo");
   };
 
   const handleClearQueue = () => {
     if (appModeRef.current === APP_MODE_DUMMY) {
-      setDummyUsersEntered((prev) => Math.max(0, prev - dummyQueue.length));
       clearSchedulerQueue();
       return;
     }
-    setSimUsersEntered((prev) => Math.max(0, prev - queue.length));
     setQueue([]);
   };
 
@@ -441,18 +662,26 @@ export default function App() {
 
   const handleResetSimulation = () => {
     nextQueueId = 1;
-    setSimulationStatus("stopped");
+    simNeedsPlayResetRef.current = true;
+    setHasPlayedSession(false);
+    setSimulationStatus("paused");
+    simulationStatusRef.current = "paused";
     setSimulationConfig({ ...INITIAL_SIM_CONFIG });
     setQueue([]);
     setLogs([]);
+    setSimElapsedMs(0);
+    setSimExitedUsers(0);
+    setSimTotalArrivals(0);
     const fresh = buildInitialRestroomState(DEFAULT_RESTROOM_PRESET);
     setRestroomConditions(fresh.restroomConditions);
     setStalls(fresh.stalls);
     setUrinals(fresh.urinals);
-    setElapsedTimeText(INITIAL_ELAPSED_TIME_TEXT);
     setSatisfiedUsers(INITIAL_SATISFIED_USERS);
-    setSimUsersEntered(INITIAL_USERS_ENTERED);
-    setDummyUsersEntered(INITIAL_USERS_ENTERED);
+    setDummyExitedUsers(0);
+    setDummyTotalArrivals(0);
+    setDummySimTimeMs(0);
+    setActiveFixtureUsers({});
+    setPendingTransfers([]);
     // Reset backend scheduler too — clears any queued/in-use work and
     // counters across all modes. Dummy mode hydration will pick up the
     // cleared snapshot via SSE.
@@ -508,7 +737,7 @@ export default function App() {
    * In every case the backend scheduler is told the new mode so it
    * starts/stops its tick assignment behaviour accordingly.
    */
-  const handleAppModeChange = (next) => {
+  const handleAppModeChange = async (next) => {
     if (
       next !== APP_MODE_SIM &&
       next !== APP_MODE_TEST &&
@@ -517,8 +746,17 @@ export default function App() {
       return;
     if (next === appMode) return;
     setAppMode(next);
-    setSchedulerMode(next);
-    if (next !== APP_MODE_DUMMY) {
+    // Flip backend scheduler mode first so the subsequent runtime POST
+    // (only valid in DUMMY) is accepted.
+    await setSchedulerMode(next);
+    if (next === APP_MODE_DUMMY) {
+      // Force backend runtime to match the UI's current intent so a
+      // stale runtime from a prior Dummy session can't silently keep
+      // ticking behind a "paused" button.
+      const desired =
+        simulationStatusRef.current === "running" ? "running" : "paused";
+      setSimRuntime(desired);
+    } else {
       const payload = { command: "MODE", type: "SET", action: next };
       for (let i = 0; i < NODE_COUNT; i += 1) {
         if (!nodeConnections[i]) continue;
@@ -536,16 +774,12 @@ export default function App() {
   const viewStalls = isDummy ? dummyStalls : stalls;
   const viewUrinals = isDummy ? dummyUrinals : urinals;
   const viewSatisfiedUsers = isDummy ? dummySatisfiedUsers : satisfiedUsers;
-  const viewUsersEntered = isDummy ? dummyUsersEntered : simUsersEntered;
-  const activeUsers =
-    [...viewStalls, ...viewUrinals].filter((f) => Number(f?.usagePct) > 0).length;
-  const totalUsers = Math.max(
-    0,
-    viewUsersEntered - viewQueue.length - activeUsers
+  const viewExitedUsers = isDummy ? dummyExitedUsers : simExitedUsers;
+  const viewTotalArrivals = isDummy ? dummyTotalArrivals : simTotalArrivals;
+  const simNowMs = isDummy ? dummySimTimeMs : simElapsedMs;
+  const elapsedTimeText = formatSimElapsed(
+    isDummy ? dummySimTimeMs : simElapsedMs
   );
-  const unsatisfiedUsers = Math.max(0, totalUsers - viewSatisfiedUsers);
-  const unsatisfiedPct =
-    totalUsers > 0 ? (unsatisfiedUsers / totalUsers) * 100 : 0;
   // In Dummy Mode the digital twin is a pure simulation; the BLE node
   // connection state is irrelevant so we hide the "Node Disconnected"
   // overlay by claiming everything is connected.
@@ -585,7 +819,8 @@ export default function App() {
             restroomConditions={restroomConditions}
             logs={logs}
             onClearLogs={handleClearLogs}
-            onChangeStatus={setSimulationStatus}
+            onChangeStatus={handleSimulationStatus}
+            simulationStatus={simulationStatus}
             simulationConfig={simulationConfig}
             onSimulationConfigChange={handleSimulationConfigChange}
             onConditionChange={handleConditionChange}
@@ -597,14 +832,23 @@ export default function App() {
             <SimulationDigitalTwin
               elapsedTimeText={elapsedTimeText}
               satisfiedUsers={viewSatisfiedUsers}
-              totalUsers={totalUsers}
-              unsatisfiedPct={unsatisfiedPct}
+              exitedUsers={viewExitedUsers}
+              totalUsers={viewTotalArrivals}
+              showStats={hasPlayedSession}
+              simulationStatus={simulationStatus}
               queue={viewQueue}
               toiletTypes={toiletTypes}
               stalls={viewStalls}
               urinals={viewUrinals}
               nodeConnections={viewNodeConnections}
               pendingTransfers={isDummy ? pendingTransfers : []}
+              activeFixtureUsers={isDummy ? activeFixtureUsers : {}}
+              simNowMs={simNowMs}
+              canAddQueueUsers={
+                simulationStatus === "running" ||
+                simulationStatus === "paused" ||
+                simulationStatus === "stopped"
+              }
               onAddPee={handleAddPee}
               onAddPoo={handleAddPoo}
               onClearQueue={handleClearQueue}

@@ -37,14 +37,19 @@ function buildTwinRows(toiletTypes, stalls, urinals) {
 export default function SimulationDigitalTwin({
   elapsedTimeText,
   satisfiedUsers,
+  exitedUsers,
   totalUsers,
-  unsatisfiedPct,
+  showStats = true,
+  simulationStatus = "paused",
   queue,
   toiletTypes,
   stalls,
   urinals,
   nodeConnections,
   pendingTransfers,
+  activeFixtureUsers,
+  simNowMs,
+  canAddQueueUsers,
   onAddPee,
   onAddPoo,
   onClearQueue,
@@ -53,6 +58,10 @@ export default function SimulationDigitalTwin({
   const connections = Array.isArray(nodeConnections) ? nodeConnections : [];
   const twinRef = useRef(null);
   const safeTransfers = Array.isArray(pendingTransfers) ? pendingTransfers : [];
+  const fixtureUsers =
+    activeFixtureUsers && typeof activeFixtureUsers === "object"
+      ? activeFixtureUsers
+      : {};
   // Queue items currently being animated away toward a toilet. The
   // Queue component ghosts these tiles so the moving marker reads as
   // "this specific user".
@@ -69,15 +78,17 @@ export default function SimulationDigitalTwin({
         onAddPoo={onAddPoo}
         onClearQueue={onClearQueue}
         pendingTransferIds={pendingQueueIds}
+        canAddUsers={canAddQueueUsers}
       />
 
       <Box className="digital-twin-right">
         <Box className="digital-twin-main-row">
           <SimulationElapsedTime
-            text={elapsedTimeText}
+            elapsedTimeText={elapsedTimeText}
             satisfiedUsers={satisfiedUsers}
+            exitedUsers={exitedUsers}
             totalUsers={totalUsers}
-            unsatisfiedPct={unsatisfiedPct}
+            showStats={showStats}
           />
 
           <Box className="toilet-column">
@@ -92,6 +103,24 @@ export default function SimulationDigitalTwin({
                   isStall && !row.outOfOrder && (row.usagePct ?? 0) > 0;
                 const urinalOccupied =
                   isUrinal && (row.usagePct ?? 0) > 0;
+                const stallUser = stallOccupied ? fixtureUsers[row.id] : null;
+                const urinalUser = urinalOccupied ? fixtureUsers[row.id] : null;
+                // Scheduler snapshot ships the active user's type
+                // (`pee` / `poo`) per fixture; fall back to `pee` only
+                // when a fixture is reported busy without a user object
+                // (brief race during an assignment_started event).
+                const stallFillColor = row.outOfOrder
+                  ? "empty"
+                  : stallOccupied
+                  ? stallUser?.userType === "poo"
+                    ? "poo"
+                    : "pee"
+                  : "empty";
+                const urinalFillColor = urinalOccupied
+                  ? urinalUser?.userType === "poo"
+                    ? "poo"
+                    : "pee"
+                  : "empty";
 
                 const nextRow = idx < rows.length - 1 ? rows[idx + 1] : null;
                 const sepIsStall =
@@ -126,15 +155,15 @@ export default function SimulationDigitalTwin({
                           id={row.id}
                           usagePct={row.usagePct}
                           outOfOrder={row.outOfOrder || false}
-                          fillColor={
-                            row.outOfOrder ? "empty" : stallOccupied ? "pee" : "empty"
-                          }
+                          fillColor={stallFillColor}
+                          activeUser={stallUser}
                         />
                       ) : (
                         <UrinalContainer
                           id={row.id}
                           usagePct={row.usagePct}
-                          fillColor={urinalOccupied ? "pee" : "empty"}
+                          fillColor={urinalFillColor}
+                          activeUser={urinalUser}
                         />
                       )}
                     </Box>
@@ -157,6 +186,8 @@ export default function SimulationDigitalTwin({
       <AssignmentPreviewOverlay
         rootRef={twinRef}
         pendingTransfers={safeTransfers}
+        simNowMs={simNowMs}
+        isPaused={simulationStatus !== "running"}
       />
     </Box>
   );

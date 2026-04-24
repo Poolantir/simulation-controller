@@ -9,6 +9,7 @@ export default function StallContainer({
   usagePct,
   outOfOrder = false,
   fillColor = "pee",
+  activeUser = null,
 }) {
   if (outOfOrder) {
     return (
@@ -31,7 +32,14 @@ export default function StallContainer({
     <Box className="stall-container">
       <Box className="stall-container-left">
         <Box className="stall-container-body">
-          <UsageIcon variant={fillColor} className="stall-container-fill" />
+          <UsageIcon
+            variant={fillColor}
+            className="stall-container-fill"
+            userNumber={activeUser?.userNumber ?? null}
+            durationS={activeUser?.durationS ?? null}
+            busyUntilMs={activeUser?.busyUntilMs ?? null}
+            forceLabeled
+          />
           <Stall id={id} size="large" />
         </Box>
       </Box>

@@ -49,12 +49,22 @@ POO_DURATION_RANGE_S = (10.0, 15.0)
 # the target fixture before the assignment actually starts. Exposed as
 # a module-level constant so tests can shorten it deterministically.
 PREVIEW_DURATION_S = 3.0
-
+# Queue wait (simulation time) after which a user leaves without service.
+QUEUE_WAIT_TIMEOUT_S = 10.0
 
 MODE_SIM = "SIM"
 MODE_TEST = "TEST"
 MODE_DUMMY = "DUMMY"
 VALID_MODES = (MODE_SIM, MODE_TEST, MODE_DUMMY)
+
+# Simulation transport for Dummy mode tick. Default idle is `paused`
+# (clock off, queue can be edited). `stopped` is internal-only; the HTTP
+# API accepts play/pause only.
+RUNTIME_STOPPED = "stopped"
+RUNTIME_PAUSED = "paused"
+RUNTIME_RUNNING = "running"
+VALID_RUNTIMES = (RUNTIME_STOPPED, RUNTIME_PAUSED, RUNTIME_RUNNING)
+API_SIM_USER_RUNTIMES = (RUNTIME_RUNNING, RUNTIME_PAUSED)
 
 DEFAULT_TOILET_TYPES: List[str] = [
     "stall",
@@ -71,9 +81,22 @@ class QueueItem:
     id: int
     type: str  # "pee" | "poo"
     enqueued_at: float
+    # Simulation-time stamp when the user joined the queue (advances
+    # only while runtime is `running`); used for 10s exit timeout.
+    enqueued_at_sim_s: float = 0.0
+    # Pre-sampled occupancy duration. Decided at enqueue time so the UI
+    # can show a stable "time in front of toilet" label on the queued
+    # user that matches the countdown once they commit to a fixture.
+    duration_s: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "type": self.type, "enqueued_at": self.enqueued_at}
+        return {
+            "id": self.id,
+            "type": self.type,
+            "enqueued_at": self.enqueued_at,
+            "enqueued_at_sim_s": self.enqueued_at_sim_s,
+            "duration_s": self.duration_s,
+        }
 
 
 @dataclass
@@ -84,6 +107,12 @@ class Fixture:
     in_use: bool = False
     busy_until: Optional[float] = None
     current_user_type: Optional[str] = None  # "pee" | "poo" while in_use
+    # Ordinal (`QueueItem.id`) of the user currently occupying this
+    # fixture. Carried through reservation -> commit so the UI can
+    # render the same "user N" tile for a given user from queue to
+    # fixture and show a live countdown timer.
+    current_queue_item_id: Optional[int] = None
+    current_duration_s: Optional[float] = None
     # Reservation ("preview") state: while True the fixture is committed
     # to a specific queued user but `in_use` hasn't flipped yet. The
     # scheduler holds this state for PREVIEW_DURATION_S so the UI can
@@ -94,6 +123,12 @@ class Fixture:
     reserved_user_type: Optional[str] = None
     reserved_queue_item_id: Optional[int] = None
     reserved_duration_s: Optional[float] = None
+    # Sim time at preview start (drives client animation with sim clock).
+    preview_started_sim_s: Optional[float] = None
+    # Filled when simulation is paused: wall-clock deadlines converted to
+    # remaining seconds so real time does not elapse while paused.
+    occupancy_remaining_s: Optional[float] = None
+    preview_remaining_s: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -103,10 +138,16 @@ class Fixture:
             "in_use": self.in_use,
             "busy_until": self.busy_until,
             "current_user_type": self.current_user_type,
+            "current_queue_item_id": self.current_queue_item_id,
+            "current_duration_s": self.current_duration_s,
             "reserved": self.reserved,
             "reserved_until": self.reserved_until,
             "reserved_user_type": self.reserved_user_type,
             "reserved_queue_item_id": self.reserved_queue_item_id,
+            "reserved_duration_s": self.reserved_duration_s,
+            "preview_started_sim_s": self.preview_started_sim_s,
+            "occupancy_remaining_s": self.occupancy_remaining_s,
+            "preview_remaining_s": self.preview_remaining_s,
         }
 
 
@@ -142,6 +183,15 @@ class Scheduler:
         self._next_queue_id: int = 1
         self._mode: str = MODE_SIM
         self._satisfied_users: int = 0
+        self._exited_users: int = 0
+        self._total_arrivals: int = 0
+        # Dummy-mode simulation clock (seconds), advances only while
+        # `self._runtime == RUNTIME_RUNNING` and `self._mode == MODE_DUMMY`.
+        self._sim_time_s: float = 0.0
+        # Wall clock anchor for the tick loop; used to integrate sim time.
+        self._last_tick_wall: Optional[float] = None
+        # Play / Pause / Stop — only affects Dummy mode progression.
+        self._runtime: str = RUNTIME_PAUSED
         self._started_at: Optional[float] = None
 
         # Subscribers are called synchronously; server.py wraps them
@@ -201,12 +251,16 @@ class Scheduler:
         with self._lock:
             return {
                 "mode": self._mode,
+                "runtime": self._runtime,
+                "sim_time_s": self._sim_time_s,
                 "config": self._config.to_dict(),
                 "queue": [q.to_dict() for q in self._queue],
                 "fixtures": [
                     self._fixtures[i + 1].to_dict() for i in range(FIXTURE_COUNT)
                 ],
                 "satisfied_users": self._satisfied_users,
+                "exited_users": self._exited_users,
+                "total_arrivals": self._total_arrivals,
                 "started_at": self._started_at,
                 "now": time.time(),
             }
@@ -270,6 +324,8 @@ class Scheduler:
                         f.in_use = False
                         f.busy_until = None
                         f.current_user_type = None
+                        f.current_queue_item_id = None
+                        f.current_duration_s = None
             # If the layout changed, any stale in-use state is meaningless.
             if types_changed:
                 for f in self._fixtures.values():
@@ -277,6 +333,8 @@ class Scheduler:
                         f.in_use = False
                         f.busy_until = None
                         f.current_user_type = None
+                        f.current_queue_item_id = None
+                        f.current_duration_s = None
             # Reservations on fixtures that just became non-existent or
             # out-of-order must be cancelled so the UI stops animating
             # toward a fixture that isn't valid any more.
@@ -296,15 +354,38 @@ class Scheduler:
         if u not in ("pee", "poo"):
             return {"ok": False, "error": f"invalid user type {user_type!r}"}
         with self._lock:
-            item = QueueItem(id=self._next_queue_id, type=u, enqueued_at=time.time())
+            at_sim = self._sim_time_s
+            item = QueueItem(
+                id=self._next_queue_id,
+                type=u,
+                enqueued_at=time.time(),
+                enqueued_at_sim_s=at_sim,
+                duration_s=self._sample_duration(u),
+            )
             self._next_queue_id += 1
             self._queue.append(item)
+            if self._mode == MODE_DUMMY:
+                self._total_arrivals += 1
             if self._started_at is None:
                 self._started_at = time.time()
         self._emit("queue_updated", {"queue": [q.to_dict() for q in self._queue_copy()]})
         # Try to assign immediately so small queues feel instantaneous.
         self._try_assign()
         return {"ok": True, "item": item.to_dict()}
+
+    def sample_duration(self, user_type: str) -> Dict[str, Any]:
+        """
+        Sample an occupancy duration without enqueuing anyone. Used by
+        non-Dummy modes (SIM) where the backend isn't driving the queue
+        but the frontend still wants backend-authoritative per-user
+        durations to label queued users with.
+        """
+        u = str(user_type).lower()
+        if u not in ("pee", "poo"):
+            return {"ok": False, "error": f"invalid user type {user_type!r}"}
+        with self._lock:
+            duration = self._sample_duration(u)
+        return {"ok": True, "type": u, "duration_s": duration}
 
     def clear_queue(self) -> Dict[str, Any]:
         with self._lock:
@@ -323,10 +404,89 @@ class Scheduler:
             self._next_queue_id = 1
             self._clear_fixtures_locked()
             self._satisfied_users = 0
+            self._exited_users = 0
+            self._total_arrivals = 0
+            self._sim_time_s = 0.0
+            self._last_tick_wall = None
+            self._runtime = RUNTIME_PAUSED
             self._started_at = None
         self._emit("reset", {})
         self._emit_state()
         return {"ok": True}
+
+    def set_sim_runtime(self, runtime: str) -> Dict[str, Any]:
+        """
+        Transport control for the Dummy mode simulation clock and queue
+        processing. The HTTP API accepts only ``running`` and ``paused``;
+        ``stopped`` is for internal use (e.g. :meth:`reset`).
+
+        * ``running`` from ``stopped`` starts a new session: counters and
+          sim time reset to zero and fixtures/queue are cleared.
+        * ``running`` from ``paused`` resumes deadlines.
+        * ``paused`` snapshots remaining occupancy/preview time into
+          per-fixture *remaining* fields and clears absolute deadlines.
+        * ``stopped`` cancels in-flight work and keeps final counters
+          (satisfied / exited / total arrivals) and sim time for display.
+        """
+        r = str(runtime or "").lower()
+        if r not in ("running", "paused", "stopped"):
+            return {"ok": False, "error": f"invalid runtime {runtime!r}"}
+        if self._mode != MODE_DUMMY:
+            if r in ("running", "paused", "stopped"):
+                return {"ok": False, "error": "sim runtime only applies in DUMMY mode"}
+        cancelled: List[Dict[str, Any]] = []
+        now = time.time()
+        with self._lock:
+            prev = self._runtime
+            if r == RUNTIME_PAUSED:
+                if prev != RUNTIME_RUNNING:
+                    return {"ok": True, "runtime": self._runtime}
+                self._freeze_deadlines_for_pause_locked(now)
+                self._runtime = RUNTIME_PAUSED
+            elif r == RUNTIME_STOPPED:
+                if prev in (RUNTIME_RUNNING, RUNTIME_PAUSED):
+                    cancelled = self._cancel_reservations_locked()
+                    self._queue.clear()
+                    self._clear_fixtures_locked()
+                self._runtime = RUNTIME_STOPPED
+                self._last_tick_wall = None
+            else:  # running
+                if prev == RUNTIME_PAUSED:
+                    self._unfreeze_deadlines_for_resume_locked(now)
+                elif prev == RUNTIME_STOPPED:
+                    self._satisfied_users = 0
+                    self._exited_users = 0
+                    self._total_arrivals = 0
+                    self._sim_time_s = 0.0
+                    self._started_at = None
+                    self._next_queue_id = 1
+                    self._queue.clear()
+                    self._clear_fixtures_locked()
+                self._runtime = RUNTIME_RUNNING
+                self._last_tick_wall = now
+        for c in cancelled:
+            self._emit("assignment_preview_cancelled", c)
+        self._emit("sim_runtime_changed", {"runtime": r})
+        self._emit_state()
+        return {"ok": True, "runtime": r}
+
+    def _freeze_deadlines_for_pause_locked(self, now: float) -> None:
+        for f in self._fixtures.values():
+            if f.in_use and f.busy_until is not None and f.occupancy_remaining_s is None:
+                f.occupancy_remaining_s = max(0.0, f.busy_until - now)
+                f.busy_until = None
+            if f.reserved and f.reserved_until is not None and f.preview_remaining_s is None:
+                f.preview_remaining_s = max(0.0, f.reserved_until - now)
+                f.reserved_until = None
+
+    def _unfreeze_deadlines_for_resume_locked(self, now: float) -> None:
+        for f in self._fixtures.values():
+            if f.occupancy_remaining_s is not None:
+                f.busy_until = now + f.occupancy_remaining_s
+                f.occupancy_remaining_s = None
+            if f.preview_remaining_s is not None:
+                f.reserved_until = now + f.preview_remaining_s
+                f.preview_remaining_s = None
 
     # ---- internal helpers --------------------------------------------
 
@@ -357,11 +517,16 @@ class Scheduler:
             f.in_use = False
             f.busy_until = None
             f.current_user_type = None
+            f.current_queue_item_id = None
+            f.current_duration_s = None
             f.reserved = False
             f.reserved_until = None
             f.reserved_user_type = None
             f.reserved_queue_item_id = None
             f.reserved_duration_s = None
+            f.preview_started_sim_s = None
+            f.occupancy_remaining_s = None
+            f.preview_remaining_s = None
 
     def _cancel_reservations_locked(
         self,
@@ -391,6 +556,7 @@ class Scheduler:
             fixture.reserved_user_type = None
             fixture.reserved_queue_item_id = None
             fixture.reserved_duration_s = None
+            fixture.preview_started_sim_s = None
         return cancelled
 
     def _eligible_free_indices(self) -> List[int]:
@@ -435,7 +601,7 @@ class Scheduler:
         be placed (e.g. pooer with no free stall), nobody behind them
         is reserved either. Items already in preview are skipped.
         """
-        if self._mode != MODE_DUMMY:
+        if self._mode != MODE_DUMMY or self._runtime != RUNTIME_RUNNING:
             return
         preview_events: List[Dict[str, Any]] = []
         with self._lock:
@@ -464,16 +630,17 @@ class Scheduler:
                     # No eligible candidate for *this* user type right now.
                     break
                 fixture = self._fixtures[pick_idx + 1]
-                # Sample the real occupancy duration up-front so it's
-                # deterministic relative to the enqueue time even if
-                # the RNG is advanced between reserve and commit.
-                duration = self._sample_duration(head.type)
+                # Reuse the duration sampled at enqueue time so the
+                # label the UI showed while the user was queued matches
+                # the countdown that starts once they reach the toilet.
+                duration = head.duration_s or self._sample_duration(head.type)
                 now = time.time()
                 fixture.reserved = True
                 fixture.reserved_until = now + PREVIEW_DURATION_S
                 fixture.reserved_user_type = head.type
                 fixture.reserved_queue_item_id = head.id
                 fixture.reserved_duration_s = duration
+                fixture.preview_started_sim_s = self._sim_time_s
                 reserved_ids.add(head.id)
                 preview_events.append(
                     {
@@ -484,6 +651,7 @@ class Scheduler:
                         "duration_s": duration,
                         "reserved_until": fixture.reserved_until,
                         "preview_duration_s": PREVIEW_DURATION_S,
+                        "sim_time_s": self._sim_time_s,
                         "weights": {str(k + 1): v for k, v in weights.items()},
                     }
                 )
@@ -527,9 +695,12 @@ class Scheduler:
                 fixture.reserved_user_type = None
                 fixture.reserved_queue_item_id = None
                 fixture.reserved_duration_s = None
+                fixture.preview_started_sim_s = None
                 fixture.in_use = True
                 fixture.busy_until = now + duration
                 fixture.current_user_type = user_type
+                fixture.current_queue_item_id = queue_item_id
+                fixture.current_duration_s = duration
                 if queue_item_id is not None:
                     for i, q in enumerate(self._queue):
                         if q.id == queue_item_id:
@@ -570,6 +741,8 @@ class Scheduler:
                     fixture.in_use = False
                     fixture.busy_until = None
                     fixture.current_user_type = None
+                    fixture.current_queue_item_id = None
+                    fixture.current_duration_s = None
                     self._satisfied_users += 1
                     released.append(
                         {
@@ -584,6 +757,39 @@ class Scheduler:
         if released:
             self._emit_state()
 
+    def _expire_queue_timeouts(self) -> None:
+        """Remove queued users who waited longer than QUEUE_WAIT_TIMEOUT_S
+        sim seconds (excluding users currently in preview)."""
+        removed: List[Dict[str, Any]] = []
+        with self._lock:
+            if self._mode != MODE_DUMMY or self._runtime != RUNTIME_RUNNING:
+                return
+            reserved_ids = {
+                f.reserved_queue_item_id
+                for f in self._fixtures.values()
+                if f.reserved and f.reserved_queue_item_id is not None
+            }
+            kept: List[QueueItem] = []
+            for q in self._queue:
+                if q.id in reserved_ids:
+                    kept.append(q)
+                    continue
+                if self._sim_time_s - q.enqueued_at_sim_s > QUEUE_WAIT_TIMEOUT_S:
+                    self._exited_users += 1
+                    removed.append({"queue_item_id": q.id})
+                else:
+                    kept.append(q)
+            if len(kept) != len(self._queue):
+                self._queue[:] = kept
+        for ev in removed:
+            self._emit("queue_item_exited", ev)
+        if removed:
+            self._emit(
+                "queue_updated",
+                {"queue": [q.to_dict() for q in self._queue_copy()]},
+            )
+            self._emit_state()
+
     def _emit_state(self) -> None:
         self._emit("scheduler_state", self.snapshot())
 
@@ -591,9 +797,24 @@ class Scheduler:
         log.info("scheduler tick thread started")
         while not self._stop.is_set():
             try:
-                self._release_completed()
-                self._commit_reservations()
-                self._try_assign()
+                now = time.time()
+                with self._lock:
+                    if self._last_tick_wall is None:
+                        self._last_tick_wall = now
+                    else:
+                        dt = max(0.0, min(now - self._last_tick_wall, 1.0))
+                        self._last_tick_wall = now
+                        if (
+                            self._mode == MODE_DUMMY
+                            and self._runtime == RUNTIME_RUNNING
+                            and dt > 0
+                        ):
+                            self._sim_time_s += dt
+                if self._mode == MODE_DUMMY and self._runtime == RUNTIME_RUNNING:
+                    self._release_completed()
+                    self._commit_reservations()
+                    self._try_assign()
+                    self._expire_queue_timeouts()
             except Exception:
                 log.exception("scheduler tick raised")
             self._stop.wait(TICK_INTERVAL_S)
@@ -629,8 +850,14 @@ __all__ = [
     "PEE_DURATION_RANGE_S",
     "POO_DURATION_RANGE_S",
     "PREVIEW_DURATION_S",
+    "QUEUE_WAIT_TIMEOUT_S",
     "MODE_SIM",
     "MODE_TEST",
     "MODE_DUMMY",
     "VALID_MODES",
+    "RUNTIME_STOPPED",
+    "RUNTIME_PAUSED",
+    "RUNTIME_RUNNING",
+    "VALID_RUNTIMES",
+    "API_SIM_USER_RUNTIMES",
 ]
