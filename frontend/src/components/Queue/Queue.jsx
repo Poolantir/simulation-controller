@@ -3,8 +3,17 @@ import AddIcon from "@mui/icons-material/Add";
 import UsageIcon from "../UsageIcon/UsageIcon";
 import "./Queue.css";
 
-export default function Queue({ queue, onAddPee, onAddPoo, onClearQueue }) {
+export default function Queue({
+  queue,
+  onAddPee,
+  onAddPoo,
+  onClearQueue,
+  pendingTransferIds,
+}) {
   const total = queue.length;
+  const leavingIds = pendingTransferIds instanceof Set
+    ? pendingTransferIds
+    : new Set(Array.isArray(pendingTransferIds) ? pendingTransferIds : []);
 
   return (
     <Box className="queue-container">
@@ -44,13 +53,23 @@ export default function Queue({ queue, onAddPee, onAddPoo, onClearQueue }) {
         </Button>
 
         <Box className="queue-list">
-          {queue.map((item) => (
-            <UsageIcon
-              key={item.id}
-              variant={item.type}
-              className="queue-block"
-            />
-          ))}
+          {queue.map((item) => {
+            const leaving = leavingIds.has(item.id);
+            const classes = ["queue-block"];
+            if (leaving) classes.push("queue-block--leaving");
+            return (
+              <Box
+                key={item.id}
+                className="queue-block-wrapper"
+                data-queue-item-id={item.id}
+              >
+                <UsageIcon
+                  variant={item.type}
+                  className={classes.join(" ")}
+                />
+              </Box>
+            );
+          })}
         </Box>
       </Box>
 

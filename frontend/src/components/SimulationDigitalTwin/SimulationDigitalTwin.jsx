@@ -1,5 +1,6 @@
-import { Fragment } from "react";
+import { Fragment, useMemo, useRef } from "react";
 import { Box, Typography } from "@mui/material";
+import AssignmentPreviewOverlay from "../AssignmentPreviewOverlay/AssignmentPreviewOverlay";
 import Queue from "../Queue/Queue";
 import SimulationElapsedTime from "../SimulationElapsedTime/SimulationElapsedTime";
 import StallContainer from "../StallContainer/StallContainer";
@@ -43,20 +44,31 @@ export default function SimulationDigitalTwin({
   stalls,
   urinals,
   nodeConnections,
+  pendingTransfers,
   onAddPee,
   onAddPoo,
   onClearQueue,
 }) {
   const rows = buildTwinRows(toiletTypes, stalls, urinals);
   const connections = Array.isArray(nodeConnections) ? nodeConnections : [];
+  const twinRef = useRef(null);
+  const safeTransfers = Array.isArray(pendingTransfers) ? pendingTransfers : [];
+  // Queue items currently being animated away toward a toilet. The
+  // Queue component ghosts these tiles so the moving marker reads as
+  // "this specific user".
+  const pendingQueueIds = useMemo(
+    () => new Set(safeTransfers.map((t) => t.queueItemId)),
+    [safeTransfers]
+  );
 
   return (
-    <Box className="digital-twin">
+    <Box className="digital-twin" ref={twinRef}>
       <Queue
         queue={queue}
         onAddPee={onAddPee}
         onAddPoo={onAddPoo}
         onClearQueue={onClearQueue}
+        pendingTransferIds={pendingQueueIds}
       />
 
       <Box className="digital-twin-right">
@@ -88,7 +100,10 @@ export default function SimulationDigitalTwin({
 
                 return (
                   <Fragment key={`toilet-${row.id}`}>
-                    <Box className="toilet-column-slot">
+                    <Box
+                      className="toilet-column-slot"
+                      data-fixture-id={row.id}
+                    >
                       {isNonexistent ? (
                         <Box
                           className="toilet-column-nonexistent"
@@ -138,6 +153,11 @@ export default function SimulationDigitalTwin({
           </Box>
         </Box>
       </Box>
+
+      <AssignmentPreviewOverlay
+        rootRef={twinRef}
+        pendingTransfers={safeTransfers}
+      />
     </Box>
   );
 }

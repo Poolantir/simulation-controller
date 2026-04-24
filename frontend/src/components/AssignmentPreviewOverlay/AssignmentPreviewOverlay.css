@@ -1,0 +1,97 @@
+@import "../../styles.css";
+
+/* Overlay sits on top of the entire digital twin; never intercepts
+ * clicks since the underlying queue + toilet controls must stay
+ * interactive while an animation plays. */
+.assignment-preview-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.assignment-preview-overlay__svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.assignment-preview-overlay__line {
+  stroke: var(--color-text);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.assignment-preview-overlay__head {
+  fill: var(--color-text);
+  stroke: var(--color-text);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.assignment-preview-overlay__arrow {
+  opacity: 0.75;
+}
+
+/* The moving user icon: starts at the queue tile and slides along
+ * the arrow to land at the fixture's left edge. Keyframe-based so
+ * timing is deterministic (3 s by default) and the GPU can animate
+ * transform without re-layout. */
+.assignment-preview-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4.375rem;
+  height: 4.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  border: var(--border-width) solid var(--color-brown-dark);
+  box-sizing: border-box;
+  /* Center the tile on the start point rather than offsetting from
+   * its top-left corner. */
+  margin-left: -2.1875rem;
+  margin-top: -2.1875rem;
+  animation: assignment-preview-slide var(--preview-duration, 3000ms) linear
+    var(--preview-delay, 0ms) forwards;
+  will-change: transform;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.assignment-preview-marker--pee {
+  background-color: var(--color-yellow-light);
+}
+
+.assignment-preview-marker--poo {
+  background-color: var(--color-brown-light);
+}
+
+.assignment-preview-marker__icon {
+  font-size: var(--icon-size-lg) !important;
+}
+
+.assignment-preview-marker--pee .assignment-preview-marker__icon {
+  color: var(--color-brown-mid) !important;
+}
+
+.assignment-preview-marker--poo .assignment-preview-marker__icon {
+  color: var(--color-brown-dark) !important;
+}
+
+@keyframes assignment-preview-slide {
+  from {
+    transform: translate(var(--preview-start-x), var(--preview-start-y));
+  }
+  to {
+    transform: translate(var(--preview-end-x), var(--preview-end-y));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assignment-preview-marker {
+    animation-duration: 0ms;
+  }
+}

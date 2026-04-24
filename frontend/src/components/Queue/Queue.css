@@ -141,6 +141,22 @@
   box-sizing: border-box;
 }
 
+/* Wrapper lets the overlay anchor to a stable box per queue item
+ * regardless of how the inner UsageIcon is styled in each variant. */
+.queue-block-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* While a user is animating toward their assigned toilet the queue
+ * entry ghosts out so the traveling icon reads as "this one". */
+.queue-block--leaving {
+  opacity: 0.25 !important;
+  transition: opacity var(--transition-fast);
+}
+
 .queue-total {
   flex-shrink: 0;
   margin: 0 !important;

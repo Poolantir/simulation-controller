@@ -45,6 +45,10 @@ FIXTURE_COUNT = 6
 TICK_INTERVAL_S = 0.1
 PEE_DURATION_RANGE_S = (2.0, 4.0)
 POO_DURATION_RANGE_S = (10.0, 15.0)
+# How long the UI shows an arrow + user icon traveling from queue to
+# the target fixture before the assignment actually starts. Exposed as
+# a module-level constant so tests can shorten it deterministically.
+PREVIEW_DURATION_S = 3.0
 
 
 MODE_SIM = "SIM"
@@ -80,6 +84,16 @@ class Fixture:
     in_use: bool = False
     busy_until: Optional[float] = None
     current_user_type: Optional[str] = None  # "pee" | "poo" while in_use
+    # Reservation ("preview") state: while True the fixture is committed
+    # to a specific queued user but `in_use` hasn't flipped yet. The
+    # scheduler holds this state for PREVIEW_DURATION_S so the UI can
+    # animate an arrow / user icon traveling from the queue to this
+    # fixture before occupancy visually starts.
+    reserved: bool = False
+    reserved_until: Optional[float] = None
+    reserved_user_type: Optional[str] = None
+    reserved_queue_item_id: Optional[int] = None
+    reserved_duration_s: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -89,6 +103,10 @@ class Fixture:
             "in_use": self.in_use,
             "busy_until": self.busy_until,
             "current_user_type": self.current_user_type,
+            "reserved": self.reserved,
+            "reserved_until": self.reserved_until,
+            "reserved_user_type": self.reserved_user_type,
+            "reserved_queue_item_id": self.reserved_queue_item_id,
         }
 
 
@@ -196,6 +214,7 @@ class Scheduler:
     def set_mode(self, mode: str, *, clear_queue_on_switch: bool = True) -> Dict[str, Any]:
         if mode not in VALID_MODES:
             return {"ok": False, "error": f"invalid mode {mode!r}"}
+        cancelled: List[Dict[str, Any]] = []
         with self._lock:
             if mode == self._mode:
                 return {"ok": True, "mode": self._mode}
@@ -203,8 +222,11 @@ class Scheduler:
             # When leaving Dummy mid-run the in-flight work is meaningless,
             # so wipe transient state. The user's Sim/Test config is kept.
             if mode != MODE_DUMMY and clear_queue_on_switch:
+                cancelled = self._cancel_reservations_locked()
                 self._queue.clear()
                 self._clear_fixtures_locked()
+        for ev in cancelled:
+            self._emit("assignment_preview_cancelled", ev)
         self._emit("mode_changed", {"mode": mode})
         self._emit_state()
         return {"ok": True, "mode": mode}
@@ -255,6 +277,16 @@ class Scheduler:
                         f.in_use = False
                         f.busy_until = None
                         f.current_user_type = None
+            # Reservations on fixtures that just became non-existent or
+            # out-of-order must be cancelled so the UI stops animating
+            # toward a fixture that isn't valid any more.
+            cancelled = self._cancel_reservations_locked(
+                predicate=lambda f: (
+                    f.kind == "nonexistent" or f.condition == "Out-of-Order"
+                )
+            )
+        for ev in cancelled:
+            self._emit("assignment_preview_cancelled", ev)
         self._emit("config_updated", self._config.to_dict())
         self._emit_state()
         return {"ok": True, "config": self._config.to_dict()}
@@ -277,7 +309,12 @@ class Scheduler:
     def clear_queue(self) -> Dict[str, Any]:
         with self._lock:
             self._queue.clear()
+            cancelled = self._cancel_reservations_locked()
         self._emit("queue_updated", {"queue": []})
+        for ev in cancelled:
+            self._emit("assignment_preview_cancelled", ev)
+        if cancelled:
+            self._emit_state()
         return {"ok": True}
 
     def reset(self) -> Dict[str, Any]:
@@ -320,9 +357,47 @@ class Scheduler:
             f.in_use = False
             f.busy_until = None
             f.current_user_type = None
+            f.reserved = False
+            f.reserved_until = None
+            f.reserved_user_type = None
+            f.reserved_queue_item_id = None
+            f.reserved_duration_s = None
+
+    def _cancel_reservations_locked(
+        self,
+        predicate: Optional[Callable[[Fixture], bool]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Clear preview reservations matching `predicate` (or all when None)
+        and return cancellation event payloads. Caller is responsible for
+        emitting `assignment_preview_cancelled` outside the lock.
+        """
+        cancelled: List[Dict[str, Any]] = []
+        for fixture in self._fixtures.values():
+            if not fixture.reserved:
+                continue
+            if predicate is not None and not predicate(fixture):
+                continue
+            cancelled.append(
+                {
+                    "queue_item_id": fixture.reserved_queue_item_id,
+                    "fixture_id": fixture.id,
+                    "fixture_kind": fixture.kind,
+                    "user_type": fixture.reserved_user_type,
+                }
+            )
+            fixture.reserved = False
+            fixture.reserved_until = None
+            fixture.reserved_user_type = None
+            fixture.reserved_queue_item_id = None
+            fixture.reserved_duration_s = None
+        return cancelled
 
     def _eligible_free_indices(self) -> List[int]:
-        """0-indexed list of fixtures that are existing + not-in-use."""
+        """
+        0-indexed list of fixtures that are existing, not-in-use, and
+        not currently reserved for a queued user's preview animation.
+        """
         free: List[int] = []
         for i in range(FIXTURE_COUNT):
             f = self._fixtures.get(i + 1)
@@ -330,7 +405,7 @@ class Scheduler:
                 continue
             if f.kind == "nonexistent":
                 continue
-            if f.in_use:
+            if f.in_use or f.reserved:
                 continue
             free.append(i)
         return free
@@ -346,18 +421,33 @@ class Scheduler:
 
     def _try_assign(self) -> None:
         """
-        Attempt to place the head of the FIFO queue on a free eligible
-        fixture. Head-blocks-queue: if the head can't be placed (e.g.
-        pooer with no free stall), nobody else is served until that
-        user can be placed. Keeps behaviour intuitive for the UI.
+        Attempt to reserve free eligible fixtures for queued users.
+
+        A reservation is the "preview" step before real occupancy: the
+        queue head is *not* popped yet, the fixture's `in_use` stays
+        False, and we emit `assignment_preview` so the UI can animate
+        an arrow + user icon traveling from queue to fixture for
+        ``PREVIEW_DURATION_S`` seconds. `_commit_reservations` promotes
+        each reservation into a real assignment once the preview window
+        elapses.
+
+        Head-blocks-queue: if the first non-reserved queue item can't
+        be placed (e.g. pooer with no free stall), nobody behind them
+        is reserved either. Items already in preview are skipped.
         """
         if self._mode != MODE_DUMMY:
             return
-        assigned_events: List[Dict[str, Any]] = []
-        queue_changed = False
+        preview_events: List[Dict[str, Any]] = []
         with self._lock:
-            while self._queue:
-                head = self._queue[0]
+            reserved_ids = {
+                f.reserved_queue_item_id
+                for f in self._fixtures.values()
+                if f.reserved and f.reserved_queue_item_id is not None
+            }
+            for head in list(self._queue):
+                if head.id in reserved_ids:
+                    # Already in preview on some fixture; try next in line.
+                    continue
                 free = self._eligible_free_indices()
                 if not free:
                     break
@@ -373,33 +463,97 @@ class Scheduler:
                 if pick_idx is None:
                     # No eligible candidate for *this* user type right now.
                     break
-                # Pop head + mark fixture busy.
-                self._queue.pop(0)
-                queue_changed = True
                 fixture = self._fixtures[pick_idx + 1]
+                # Sample the real occupancy duration up-front so it's
+                # deterministic relative to the enqueue time even if
+                # the RNG is advanced between reserve and commit.
                 duration = self._sample_duration(head.type)
                 now = time.time()
-                fixture.in_use = True
-                fixture.busy_until = now + duration
-                fixture.current_user_type = head.type
-                assigned_events.append(
+                fixture.reserved = True
+                fixture.reserved_until = now + PREVIEW_DURATION_S
+                fixture.reserved_user_type = head.type
+                fixture.reserved_queue_item_id = head.id
+                fixture.reserved_duration_s = duration
+                reserved_ids.add(head.id)
+                preview_events.append(
                     {
                         "queue_item_id": head.id,
                         "user_type": head.type,
                         "fixture_id": fixture.id,
                         "fixture_kind": fixture.kind,
                         "duration_s": duration,
-                        "busy_until": fixture.busy_until,
+                        "reserved_until": fixture.reserved_until,
+                        "preview_duration_s": PREVIEW_DURATION_S,
                         "weights": {str(k + 1): v for k, v in weights.items()},
                     }
                 )
-        for ev in assigned_events:
+        for ev in preview_events:
+            self._emit("assignment_preview", ev)
+        if preview_events:
+            self._emit_state()
+
+    def _commit_reservations(self) -> None:
+        """
+        Promote any reservation whose preview window has elapsed into
+        a real assignment: flip `in_use`, start the occupancy countdown
+        from *now*, pop the queue item, and emit `assignment_started`
+        (plus `queue_updated`).
+
+        Reservations commit in chronological order (earliest
+        `reserved_until` first) so `assignment_started` events preserve
+        FIFO queueing even when multiple fixtures elapse in the same
+        tick.
+        """
+        commit_events: List[Dict[str, Any]] = []
+        queue_changed = False
+        with self._lock:
+            now = time.time()
+            pending = [
+                f
+                for f in self._fixtures.values()
+                if f.reserved
+                and f.reserved_until is not None
+                and f.reserved_until <= now
+            ]
+            pending.sort(key=lambda f: (f.reserved_until or 0.0, f.id))
+            for fixture in pending:
+                user_type = fixture.reserved_user_type or "pee"
+                queue_item_id = fixture.reserved_queue_item_id
+                duration = fixture.reserved_duration_s
+                if duration is None:
+                    duration = self._sample_duration(user_type)
+                fixture.reserved = False
+                fixture.reserved_until = None
+                fixture.reserved_user_type = None
+                fixture.reserved_queue_item_id = None
+                fixture.reserved_duration_s = None
+                fixture.in_use = True
+                fixture.busy_until = now + duration
+                fixture.current_user_type = user_type
+                if queue_item_id is not None:
+                    for i, q in enumerate(self._queue):
+                        if q.id == queue_item_id:
+                            self._queue.pop(i)
+                            queue_changed = True
+                            break
+                commit_events.append(
+                    {
+                        "queue_item_id": queue_item_id,
+                        "user_type": user_type,
+                        "fixture_id": fixture.id,
+                        "fixture_kind": fixture.kind,
+                        "duration_s": duration,
+                        "busy_until": fixture.busy_until,
+                    }
+                )
+        for ev in commit_events:
             self._emit("assignment_started", ev)
         if queue_changed:
             self._emit(
                 "queue_updated",
                 {"queue": [q.to_dict() for q in self._queue_copy()]},
             )
+        if commit_events:
             self._emit_state()
 
     def _release_completed(self) -> None:
@@ -438,6 +592,7 @@ class Scheduler:
         while not self._stop.is_set():
             try:
                 self._release_completed()
+                self._commit_reservations()
                 self._try_assign()
             except Exception:
                 log.exception("scheduler tick raised")
@@ -473,6 +628,7 @@ __all__ = [
     "FIXTURE_COUNT",
     "PEE_DURATION_RANGE_S",
     "POO_DURATION_RANGE_S",
+    "PREVIEW_DURATION_S",
     "MODE_SIM",
     "MODE_TEST",
     "MODE_DUMMY",

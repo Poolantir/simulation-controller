@@ -29,6 +29,7 @@ import {
   setSchedulerMode,
   updateSchedulerConfig,
 } from "./lib/schedulerApi";
+import { transferFromPreviewEvent } from "./lib/assignmentPreview";
 
 const theme = createTheme({
   palette: {
@@ -115,6 +116,12 @@ export default function App() {
   );
   const [dummySatisfiedUsers, setDummySatisfiedUsers] = useState(0);
   const [dummyUsersEntered, setDummyUsersEntered] = useState(0);
+  // Active queue -> toilet preview animations (3 s each). Keyed by
+  // (queueItemId, fixtureId) so a fixture can only host one preview.
+  // Hydrated from the SSE stream's `assignment_preview` events and
+  // cleared on `assignment_started` / `assignment_preview_cancelled` /
+  // snapshot replacement.
+  const [pendingTransfers, setPendingTransfers] = useState([]);
 
   // Keep a ref of current appMode for async callbacks that mustn't
   // capture a stale value (SSE handlers and log emitters).
@@ -153,6 +160,11 @@ export default function App() {
       setDummyStalls(mapped.stalls);
       setDummyUrinals(mapped.urinals);
       setDummySatisfiedUsers(mapped.satisfiedUsers);
+      // Hydrate preview animations from the authoritative snapshot so
+      // a page refresh in the middle of a preview still shows arrows.
+      setPendingTransfers(
+        Array.isArray(mapped.pendingTransfers) ? mapped.pendingTransfers : []
+      );
       const active = [...mapped.stalls, ...mapped.urinals].filter(
         (f) => Number(f?.usagePct) > 0
       ).length;
@@ -173,6 +185,43 @@ export default function App() {
         );
         return;
       }
+      if (event === "assignment_preview") {
+        const transfer = transferFromPreviewEvent(data);
+        if (!transfer) return;
+        setPendingTransfers((prev) => {
+          // Deduplicate on fixture id: a new preview on the same
+          // fixture should supersede any lingering stale transfer.
+          const filtered = prev.filter(
+            (t) =>
+              t.fixtureId !== transfer.fixtureId &&
+              t.queueItemId !== transfer.queueItemId
+          );
+          return [...filtered, transfer];
+        });
+        if (appModeRef.current === APP_MODE_DUMMY) {
+          const kind = data?.fixture_kind || "fixture";
+          const u = data?.user_type || "user";
+          setLogs((prev) => [
+            ...prev,
+            `[Dummy] ${u}-er previewing -> ${kind} ${transfer.fixtureId} - ${stamp}`,
+          ]);
+        }
+        return;
+      }
+      if (event === "assignment_preview_cancelled") {
+        const fid = Number(data?.fixture_id);
+        const qid = Number(data?.queue_item_id);
+        setPendingTransfers((prev) =>
+          prev.filter(
+            (t) =>
+              !(
+                (Number.isInteger(fid) && t.fixtureId === fid) ||
+                (Number.isInteger(qid) && t.queueItemId === qid)
+              )
+          )
+        );
+        return;
+      }
       if (event === "assignment_started") {
         const fid = Number(data?.fixture_id);
         if (!Number.isInteger(fid)) return;
@@ -182,6 +231,9 @@ export default function App() {
           );
         setDummyStalls(updater);
         setDummyUrinals(updater);
+        setPendingTransfers((prev) =>
+          prev.filter((t) => t.fixtureId !== fid)
+        );
         if (appModeRef.current === APP_MODE_DUMMY) {
           const kind = data?.fixture_kind || "fixture";
           const u = data?.user_type || "user";
@@ -221,6 +273,7 @@ export default function App() {
         setDummyUrinals(EMPTY_DUMMY_FIXTURES.urinals);
         setDummySatisfiedUsers(0);
         setDummyUsersEntered(0);
+        setPendingTransfers([]);
       }
     });
     return close;
@@ -551,6 +604,7 @@ export default function App() {
               stalls={viewStalls}
               urinals={viewUrinals}
               nodeConnections={viewNodeConnections}
+              pendingTransfers={isDummy ? pendingTransfers : []}
               onAddPee={handleAddPee}
               onAddPoo={handleAddPoo}
               onClearQueue={handleClearQueue}

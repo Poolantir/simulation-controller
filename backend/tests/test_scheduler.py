@@ -44,10 +44,15 @@ class SchedulerLifecycleTests(unittest.TestCase):
     def setUp(self):
         # Short durations so tests run quickly; tick interval stays at
         # the default (0.1s) to verify the production loop behaviour.
+        # The preview window is also shortened so tests don't spend
+        # 3s idling per enqueue, but it's deliberately still longer
+        # than a tick so the reservation->commit transition is observable.
         self._orig_pee = scheduler_module.PEE_DURATION_RANGE_S
         self._orig_poo = scheduler_module.POO_DURATION_RANGE_S
+        self._orig_preview = scheduler_module.PREVIEW_DURATION_S
         scheduler_module.PEE_DURATION_RANGE_S = (0.1, 0.15)
         scheduler_module.POO_DURATION_RANGE_S = (0.2, 0.25)
+        scheduler_module.PREVIEW_DURATION_S = 0.15
 
         self.events = []
         self.sched = Scheduler(rng=random.Random(1234))
@@ -64,6 +69,7 @@ class SchedulerLifecycleTests(unittest.TestCase):
         self.sched.stop()
         scheduler_module.PEE_DURATION_RANGE_S = self._orig_pee
         scheduler_module.POO_DURATION_RANGE_S = self._orig_poo
+        scheduler_module.PREVIEW_DURATION_S = self._orig_preview
 
     # -- primitive behaviours -----------------------------------------
 
@@ -94,6 +100,126 @@ class SchedulerLifecycleTests(unittest.TestCase):
         start = next(d for ev, d in self.events if ev == "assignment_started")
         self.assertGreaterEqual(start["duration_s"], 0.1)
         self.assertLessEqual(start["duration_s"], 0.15)
+
+    def test_preview_precedes_assignment_started(self):
+        """Every assignment must be preceded by an `assignment_preview`
+        event for the same (queue_item_id, fixture_id) pair, and the
+        `in_use` flag stays False during the preview window."""
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_preview" for ev, _ in self.events
+                )
+            )
+        )
+        preview = next(d for ev, d in self.events if ev == "assignment_preview")
+        # During the preview window, the chosen fixture is reserved
+        # but NOT in_use.
+        snap = self.sched.snapshot()
+        reserved = [f for f in snap["fixtures"] if f["reserved"]]
+        self.assertEqual(len(reserved), 1)
+        self.assertEqual(reserved[0]["id"], preview["fixture_id"])
+        self.assertFalse(reserved[0]["in_use"])
+        # Queue item is still in the queue during preview (not popped
+        # until commit).
+        self.assertEqual(len(snap["queue"]), 1)
+        self.assertEqual(snap["queue"][0]["id"], preview["queue_item_id"])
+
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_started" for ev, _ in self.events
+                ),
+                timeout=1.5,
+            )
+        )
+        started = next(
+            d for ev, d in self.events if ev == "assignment_started"
+        )
+        self.assertEqual(started["fixture_id"], preview["fixture_id"])
+        self.assertEqual(started["queue_item_id"], preview["queue_item_id"])
+        # Ordering: preview event strictly precedes started event.
+        preview_idx = next(
+            i for i, (ev, _) in enumerate(self.events) if ev == "assignment_preview"
+        )
+        started_idx = next(
+            i for i, (ev, _) in enumerate(self.events) if ev == "assignment_started"
+        )
+        self.assertLess(preview_idx, started_idx)
+
+    def test_preview_holds_in_use_flag(self):
+        """`in_use` must remain False for at least most of the preview
+        window, i.e. the flag flip is deferred, not immediate."""
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_preview" for ev, _ in self.events
+                )
+            )
+        )
+        # Immediately after the preview fires, in_use is still False.
+        snap = self.sched.snapshot()
+        self.assertTrue(all(not f["in_use"] for f in snap["fixtures"]))
+        # After the preview window elapses, in_use flips True.
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    f["in_use"] for f in self.sched.snapshot()["fixtures"]
+                ),
+                timeout=1.0,
+            )
+        )
+
+    def test_clear_queue_cancels_reservations(self):
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_preview" for ev, _ in self.events
+                )
+            )
+        )
+        self.sched.clear_queue()
+        # The cancellation event was emitted and the fixture is no
+        # longer reserved or in-use.
+        self.assertTrue(
+            any(ev == "assignment_preview_cancelled" for ev, _ in self.events)
+        )
+        snap = self.sched.snapshot()
+        self.assertTrue(all(not f["reserved"] for f in snap["fixtures"]))
+        self.assertTrue(all(not f["in_use"] for f in snap["fixtures"]))
+        self.assertEqual(snap["queue"], [])
+
+    def test_multiple_queued_users_all_preview_before_commit(self):
+        """All three simultaneously queued users should get a preview
+        before any of them commit to `in_use`."""
+        self.sched.enqueue("pee")
+        self.sched.enqueue("pee")
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    1 for ev, _ in self.events if ev == "assignment_preview"
+                )
+                >= 3,
+                timeout=1.0,
+            )
+        )
+        previews = [d for ev, d in self.events if ev == "assignment_preview"]
+        started = [d for ev, d in self.events if ev == "assignment_started"]
+        # All three previews fire, and each fires before its matching
+        # assignment_started. Because commits only happen once the
+        # preview window elapses, a single-tick view catches only
+        # previews — assignment_started may not be present yet.
+        self.assertGreaterEqual(len(previews), 3)
+        for p in previews:
+            matching = [s for s in started if s["fixture_id"] == p["fixture_id"]]
+            if matching:
+                p_idx = self.events.index(("assignment_preview", p))
+                s_idx = self.events.index(("assignment_started", matching[0]))
+                self.assertLess(p_idx, s_idx)
 
     def test_complete_releases_fixture(self):
         self.sched.enqueue("pee")

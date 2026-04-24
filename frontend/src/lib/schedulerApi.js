@@ -90,6 +90,8 @@ export function getSchedulerState() {
 const SCHEDULER_EVENT_NAMES = [
   "scheduler_state",
   "queue_updated",
+  "assignment_preview",
+  "assignment_preview_cancelled",
   "assignment_started",
   "assignment_completed",
   "mode_changed",
@@ -160,6 +162,8 @@ export function schedulerSnapshotToFrontendState(snap) {
 
   const stalls = [];
   const urinals = [];
+  const pendingTransfers = [];
+  const nowServer = Number(snap.now);
   for (const f of fixtures) {
     const id = Number(f?.id);
     if (!Number.isInteger(id)) continue;
@@ -177,6 +181,25 @@ export function schedulerSnapshotToFrontendState(snap) {
       if (id <= 3) stalls.push({ id, usagePct: 0, outOfOrder: false });
       else urinals.push({ id, usagePct: 0, outOfOrder: false });
     }
+
+    if (f?.reserved) {
+      const qid = Number(f?.reserved_queue_item_id);
+      const reservedUntil = Number(f?.reserved_until);
+      // Convert "reservation ends at server-now offset" into the
+      // remaining animation budget on the client. Fall back to 3s
+      // so a slightly stale snapshot still produces a visible arrow.
+      const remainingMs =
+        Number.isFinite(reservedUntil) && Number.isFinite(nowServer)
+          ? Math.max(0, (reservedUntil - nowServer) * 1000)
+          : 3000;
+      pendingTransfers.push({
+        queueItemId: Number.isInteger(qid) ? qid : null,
+        fixtureId: id,
+        userType: String(f?.reserved_user_type || "pee"),
+        startedAt: Date.now(),
+        durationMs: remainingMs,
+      });
+    }
   }
 
   const queue = Array.isArray(snap.queue)
@@ -188,6 +211,7 @@ export function schedulerSnapshotToFrontendState(snap) {
     queue,
     stalls,
     urinals,
+    pendingTransfers,
     satisfiedUsers: Number(snap.satisfied_users ?? 0),
     startedAt: snap.started_at ?? null,
     now: snap.now ?? null,
