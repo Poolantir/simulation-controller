@@ -33,8 +33,20 @@ export default function UsageIcon({
   /** When set, countdown uses this instead of `Date.now()` (simulation clock). */
   clockNowMs = null,
   forceLabeled = false,
+  flash = null,
 }) {
-  const classes = ["usage-icon", `usage-icon-${variant}`, className]
+  const flashClass =
+    flash === "success"
+      ? "usage-icon--flash-success"
+      : flash === "danger"
+      ? "usage-icon--flash-danger"
+      : "";
+  const classes = [
+    "usage-icon",
+    `usage-icon-${variant}`,
+    flashClass,
+    className,
+  ]
     .filter(Boolean)
     .join(" ");
 

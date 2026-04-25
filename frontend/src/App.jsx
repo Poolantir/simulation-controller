@@ -44,7 +44,7 @@ const theme = createTheme({
 const INITIAL_SATISFIED_USERS = 0;
 const NODE_COUNT = 6;
 const QUEUE_WAIT_MS = 10000;
-const EXIT_FLASH_MS = 600;
+const EXIT_FLASH_MS = 1000;
 
 function formatSimElapsed(ms) {
   if (!Number.isFinite(ms) || ms < 0) return "0s";
@@ -144,6 +144,14 @@ export default function App() {
   // inside each active stall/urinal. Only populated in Dummy Mode
   // since SIM mode has no scheduler-driven assignment flow.
   const [activeFixtureUsers, setActiveFixtureUsers] = useState({});
+  // Dummy mode: `queue_item_exited` arrives before `queue_updated`; we
+  // stash the row for 1s so UsageIcon can play the same danger flash
+  // as SIM mode (server queue no longer includes that id).
+  const [exitingQueueFlashes, setExitingQueueFlashes] = useState({});
+  const dummyQueueRef = useRef([]);
+  useEffect(() => {
+    dummyQueueRef.current = dummyQueue;
+  }, [dummyQueue]);
 
   // Keep a ref of current appMode for async callbacks that mustn't
   // capture a stale value (SSE handlers and log emitters).
@@ -335,6 +343,7 @@ export default function App() {
           Object.keys(snapUsers).map((k) => Number(k))
         );
         for (const idStr of Object.keys(prev)) {
+          if (prev[idStr]?.exitState === "completed") continue;
           if (!inUseIds.has(Number(idStr))) delete next[idStr];
         }
         for (const [idStr, u] of Object.entries(snapUsers)) {
@@ -357,6 +366,25 @@ export default function App() {
       const stamp = new Date().toLocaleString();
       if (event === "scheduler_state") {
         applySnapshot(data);
+        return;
+      }
+      if (event === "queue_item_exited") {
+        const qid = Number(data?.queue_item_id);
+        if (Number.isInteger(qid)) {
+          const item = dummyQueueRef.current.find((x) => x.id === qid);
+          if (item) {
+            setExitingQueueFlashes((prev) => ({
+              ...prev,
+              [qid]: {
+                id: item.id,
+                type: item.type,
+                durationS: item.durationS,
+                enqueuedAtSimS: item.enqueuedAtSimS ?? 0,
+                removeAfterWallMs: Date.now() + EXIT_FLASH_MS,
+              },
+            }));
+          }
+        }
         return;
       }
       if (event === "queue_updated") {
@@ -473,8 +501,14 @@ export default function App() {
         setDummyUrinals(updater);
         setActiveFixtureUsers((prev) => {
           if (!(fid in prev)) return prev;
-          const { [fid]: _removed, ...rest } = prev;
-          return rest;
+          return {
+            ...prev,
+            [fid]: {
+              ...prev[fid],
+              exitState: "completed",
+              removeAfterWallMs: Date.now() + 1000,
+            },
+          };
         });
         if (Number.isFinite(Number(data?.satisfied_users))) {
           setDummySatisfiedUsers(Number(data.satisfied_users));
@@ -496,9 +530,40 @@ export default function App() {
         setDummyTotalArrivals(0);
         setPendingTransfers([]);
         setActiveFixtureUsers({});
+        setExitingQueueFlashes({});
       }
     });
     return close;
+  }, []);
+
+  // Prune activeFixtureUsers completion flash + dummy queue exit flashes.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = Date.now();
+      setActiveFixtureUsers((prev) => {
+        const expired = Object.keys(prev).filter(
+          (k) =>
+            prev[k].exitState === "completed" &&
+            prev[k].removeAfterWallMs <= now
+        );
+        if (expired.length === 0) return prev;
+        const next = { ...prev };
+        for (const k of expired) delete next[k];
+        return next;
+      });
+      setExitingQueueFlashes((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const k of Object.keys(next)) {
+          if (next[k].removeAfterWallMs <= now) {
+            delete next[k];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 200);
+    return () => clearInterval(id);
   }, []);
 
   const toiletTypes = useMemo(
@@ -710,6 +775,7 @@ export default function App() {
     dummySimTimeWallAtBaseRef.current = Date.now();
     setDummySimTimeMs(0);
     setActiveFixtureUsers({});
+    setExitingQueueFlashes({});
     setPendingTransfers([]);
     // Reset backend scheduler too — clears any queued/in-use work and
     // counters across all modes. Dummy mode hydration will pick up the
@@ -799,7 +865,22 @@ export default function App() {
   };
 
   const isDummy = appMode === APP_MODE_DUMMY;
-  const viewQueue = isDummy ? dummyQueue : queue;
+  const viewQueue = useMemo(() => {
+    if (appMode !== APP_MODE_DUMMY) return queue;
+    const base = dummyQueue;
+    const baseIds = new Set(base.map((x) => x.id));
+    const t = Date.now();
+    const extras = Object.values(exitingQueueFlashes)
+      .filter((f) => !baseIds.has(f.id) && f.removeAfterWallMs > t)
+      .map((f) => ({
+        id: f.id,
+        type: f.type,
+        durationS: f.durationS,
+        enqueuedAtSimS: f.enqueuedAtSimS,
+        exitState: "expiring",
+      }));
+    return [...base, ...extras];
+  }, [appMode, queue, dummyQueue, exitingQueueFlashes]);
   const viewStalls = isDummy ? dummyStalls : stalls;
   const viewUrinals = isDummy ? dummyUrinals : urinals;
   const viewSatisfiedUsers = isDummy ? dummySatisfiedUsers : satisfiedUsers;

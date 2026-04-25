@@ -35,3 +35,22 @@
   width: 5rem;         /* 80px */
   height: 5rem;
 }
+
+/* Same row chrome as active urinals; label sits before the toilet graphic */
+.urinal-container-body--out-of-order {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.urinal-out-of-order-label {
+  flex-shrink: 0;
+  font-weight: var(--font-weight-bold) !important;
+  font-size: clamp(
+    var(--font-size-md),
+    0.85rem + 0.55vw,
+    var(--font-size-lg)
+  ) !important;
+  line-height: 1.2 !important;
+  color: var(--color-black);
+  white-space: nowrap;
+}

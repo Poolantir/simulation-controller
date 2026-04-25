@@ -60,8 +60,6 @@ export default function Queue({
             const leaving = leavingIds.has(item.id);
             const classes = ["queue-block"];
             if (leaving) classes.push("queue-block--leaving");
-            if (item.exitState === "expiring")
-              classes.push("queue-block--expiring");
             return (
               <Box
                 key={item.id}
@@ -74,6 +72,7 @@ export default function Queue({
                   userNumber={item.id}
                   durationS={item.durationS ?? null}
                   forceLabeled
+                  flash={item.exitState === "expiring" ? "danger" : null}
                 />
               </Box>
             );

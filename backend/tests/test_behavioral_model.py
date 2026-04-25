@@ -12,6 +12,7 @@ Focused on the policy-critical behaviours called out in the plan:
 from __future__ import annotations
 
 import os
+import random
 import sys
 import unittest
 
@@ -22,7 +23,9 @@ if BACKEND not in sys.path:
 
 from behavioral_model import (  # noqa: E402
     compute_candidate_weights,
+    compute_group_etiquette_shares,
     empty_conditions_for_types,
+    pick_sequential,
 )
 
 
@@ -220,6 +223,127 @@ class PeePolicyTests(unittest.TestCase):
         self.assertTrue(_sum_close(weights, 1.0))
         for i in (0, 1, 2):
             self.assertNotIn(i, weights)
+
+
+class GroupEtiquetteSharesTests(unittest.TestCase):
+    """Tests for compute_group_etiquette_shares (single-group etiquette)."""
+
+    def test_stall_shares_respect_middle_rule(self):
+        shares = compute_group_etiquette_shares(
+            toilet_types=MACLEAN,
+            conditions_by_index=_clean(MACLEAN),
+            free_indices=[0, 1, 2],
+            middle_pct=2.0,
+            group_kind="stall",
+        )
+        self.assertAlmostEqual(shares[0], 0.49, places=6)
+        self.assertAlmostEqual(shares[1], 0.02, places=6)
+        self.assertAlmostEqual(shares[2], 0.49, places=6)
+
+    def test_urinal_shares_respect_middle_rule(self):
+        shares = compute_group_etiquette_shares(
+            toilet_types=MACLEAN,
+            conditions_by_index=_clean(MACLEAN),
+            free_indices=[3, 4, 5],
+            middle_pct=2.0,
+            group_kind="urinal",
+        )
+        self.assertAlmostEqual(shares[3], 0.49, places=6)
+        self.assertAlmostEqual(shares[4], 0.02, places=6)
+        self.assertAlmostEqual(shares[5], 0.49, places=6)
+
+    def test_ooo_fixture_excluded_from_shares(self):
+        conds = _clean(MACLEAN)
+        conds[0] = "Out-of-Order"
+        shares = compute_group_etiquette_shares(
+            toilet_types=MACLEAN,
+            conditions_by_index=conds,
+            free_indices=[0, 1, 2],
+            middle_pct=2.0,
+            group_kind="stall",
+        )
+        self.assertNotIn(0, shares)
+        self.assertAlmostEqual(shares[2], 0.98, places=6)
+        self.assertAlmostEqual(shares[1], 0.02, places=6)
+
+    def test_empty_when_all_ooo(self):
+        conds = _clean(MACLEAN)
+        for i in (0, 1, 2):
+            conds[i] = "Out-of-Order"
+        shares = compute_group_etiquette_shares(
+            toilet_types=MACLEAN,
+            conditions_by_index=conds,
+            free_indices=[0, 1, 2],
+            middle_pct=2.0,
+            group_kind="stall",
+        )
+        self.assertEqual(shares, {})
+
+    def test_ignores_wrong_group(self):
+        shares = compute_group_etiquette_shares(
+            toilet_types=MACLEAN,
+            conditions_by_index=_clean(MACLEAN),
+            free_indices=[0, 1, 2, 3, 4, 5],
+            middle_pct=2.0,
+            group_kind="stall",
+        )
+        for i in (3, 4, 5):
+            self.assertNotIn(i, shares)
+
+
+class PickSequentialTests(unittest.TestCase):
+    """Tests for sequential accept/reject cleanliness evaluation."""
+
+    def test_all_clean_always_picks(self):
+        rng = random.Random(42)
+        conds = _clean(MACLEAN)
+        shares = {0: 0.49, 1: 0.02, 2: 0.49}
+        for _ in range(50):
+            result = pick_sequential(shares, conds, rng)
+            self.assertIn(result, (0, 1, 2))
+
+    def test_single_horrendous_rejects_most(self):
+        rng = random.Random(0)
+        conds = _clean(MACLEAN)
+        conds[1] = "Horrendous"
+        shares = {1: 1.0}
+        accepts = sum(
+            1 for _ in range(1000)
+            if pick_sequential(shares, conds, rng) is not None
+        )
+        self.assertGreater(accepts, 50)
+        self.assertLess(accepts, 200)
+
+    def test_all_horrendous_high_reject(self):
+        rng = random.Random(7)
+        conds = {0: "Horrendous", 1: "Horrendous", 2: "Horrendous"}
+        shares = {0: 0.49, 1: 0.02, 2: 0.49}
+        rejects = sum(
+            1 for _ in range(1000)
+            if pick_sequential(shares, conds, rng) is None
+        )
+        # Sequential: reject_prob ≈ 0.9^3 = 0.729
+        self.assertGreater(rejects, 650)
+        self.assertLess(rejects, 810)
+
+    def test_mixed_clean_horrendous_never_rejects(self):
+        rng = random.Random(99)
+        conds = {0: "Clean", 1: "Horrendous"}
+        shares = {0: 0.5, 1: 0.5}
+        for _ in range(200):
+            result = pick_sequential(shares, conds, rng)
+            self.assertIsNotNone(result)
+
+    def test_ooo_only_always_rejects(self):
+        rng = random.Random(1)
+        conds = {3: "Out-of-Order"}
+        shares = {3: 1.0}
+        for _ in range(50):
+            self.assertIsNone(pick_sequential(shares, conds, rng))
+
+    def test_empty_shares_returns_none(self):
+        rng = random.Random(1)
+        self.assertIsNone(pick_sequential({}, _clean(MACLEAN), rng))
 
 
 if __name__ == "__main__":

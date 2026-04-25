@@ -70,3 +70,42 @@
 .usage-icon-poo .usage-icon-timer {
   color: var(--color-brown-dark);
 }
+
+/* ---- Flash pulse animations ---- */
+
+@keyframes usage-icon-flash-pulse {
+  0%   { opacity: 1; transform: scale(1); }
+  10%  { opacity: 0.25; }
+  20%  { opacity: 1; }
+  30%  { opacity: 0.25; }
+  40%  { opacity: 1; }
+  50%  { opacity: 0.25; }
+  60%  { opacity: 1; }
+  70%  { opacity: 0.25; }
+  80%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.85); }
+}
+
+.usage-icon--flash-success {
+  animation: usage-icon-flash-pulse 1s ease-out forwards;
+  background-color: var(--color-success-bg) !important;
+  border-color: var(--color-success) !important;
+}
+
+.usage-icon--flash-success .usage-icon-number,
+.usage-icon--flash-success .usage-icon-timer,
+.usage-icon--flash-success .usage-icon-person {
+  color: var(--color-success-text) !important;
+}
+
+.usage-icon--flash-danger {
+  animation: usage-icon-flash-pulse 1s ease-out forwards;
+  background-color: var(--color-danger-bg) !important;
+  border-color: var(--color-danger) !important;
+}
+
+.usage-icon--flash-danger .usage-icon-number,
+.usage-icon--flash-danger .usage-icon-timer,
+.usage-icon--flash-danger .usage-icon-person {
+  color: var(--color-danger-text) !important;
+}

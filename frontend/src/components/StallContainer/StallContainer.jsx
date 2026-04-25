@@ -1,3 +1,4 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import Stall from "../Stall/Stall";
 import UsageIcon from "../UsageIcon/UsageIcon";
@@ -13,6 +14,38 @@ export default function StallContainer({
   useCount = 0,
   totalUses = 0,
 }) {
+  const prevPctRef = useRef(usagePct);
+  const prevColorRef = useRef(fillColor);
+  const [localFlash, setLocalFlash] = useState(null);
+
+  // Sim Mode: detect occupied → free transition (no activeUser in sim).
+  // useLayoutEffect avoids a single empty frame before flash starts.
+  useLayoutEffect(() => {
+    const wasOccupied = prevPctRef.current > 0;
+    const prevColor = prevColorRef.current;
+    prevPctRef.current = usagePct;
+    prevColorRef.current = fillColor;
+    if (wasOccupied && usagePct === 0 && !outOfOrder && !activeUser) {
+      setLocalFlash({
+        fillColor: prevColor !== "empty" ? prevColor : "pee",
+        until: Date.now() + 1000,
+      });
+    } else if (usagePct > 0) {
+      setLocalFlash(null);
+    }
+  }, [usagePct, outOfOrder, activeUser, fillColor]);
+
+  useEffect(() => {
+    if (!localFlash) return;
+    const delay = Math.max(0, localFlash.until - Date.now());
+    const timer = setTimeout(() => setLocalFlash(null), delay);
+    return () => clearTimeout(timer);
+  }, [localFlash]);
+
+  const dummyFlash = activeUser?.exitState === "completed" ? "success" : null;
+  const flash = dummyFlash || (localFlash ? "success" : null);
+  const effectiveColor = localFlash ? localFlash.fillColor : fillColor;
+
   if (outOfOrder) {
     return (
       <Box className="stall-container">
@@ -35,11 +68,12 @@ export default function StallContainer({
       <Box className="stall-container-left">
         <Box className="stall-container-body">
           <UsageIcon
-            variant={fillColor}
+            variant={effectiveColor}
             className="stall-container-fill"
             userNumber={activeUser?.userNumber ?? null}
             durationS={activeUser?.durationS ?? null}
             busyUntilMs={activeUser?.busyUntilMs ?? null}
+            flash={flash}
             forceLabeled
           />
           <Stall id={id} size="large" />

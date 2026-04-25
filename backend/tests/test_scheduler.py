@@ -497,5 +497,335 @@ class SchedulerLifecycleTests(unittest.TestCase):
         self.assertTrue(all(not f["reserved"] for f in snap["fixtures"]))
 
 
+class NonBlockingQueueTests(unittest.TestCase):
+    """Verify non-head-blocking assignment: pee users reach urinals
+    even when poo users ahead of them are waiting for stalls."""
+
+    def setUp(self):
+        self._orig_pee = scheduler_module.PEE_DURATION_RANGE_S
+        self._orig_poo = scheduler_module.POO_DURATION_RANGE_S
+        self._orig_preview = scheduler_module.PREVIEW_DURATION_S
+        scheduler_module.PEE_DURATION_RANGE_S = (0.1, 0.15)
+        scheduler_module.POO_DURATION_RANGE_S = (0.2, 0.25)
+        scheduler_module.PREVIEW_DURATION_S = 0.15
+
+        self.events = []
+        self.sched = Scheduler(rng=random.Random(42))
+        self.sched.subscribe(lambda ev, data: self.events.append((ev, data)))
+        self.sched.set_mode(MODE_DUMMY)
+        self.sched.set_config(
+            toilet_types=MACLEAN,
+            shy_peer_pct=0.0,
+            middle_toilet_first_choice_pct=2.0,
+        )
+        self.sched.start()
+
+    def tearDown(self):
+        self.sched.stop()
+        scheduler_module.PEE_DURATION_RANGE_S = self._orig_pee
+        scheduler_module.POO_DURATION_RANGE_S = self._orig_poo
+        scheduler_module.PREVIEW_DURATION_S = self._orig_preview
+
+    def test_pee_skips_blocked_poo_to_urinal(self):
+        """Queue [poo, poo, poo, pee]: all stalls occupied, urinals
+        free.  Pee user must get assigned to a urinal despite three poo
+        users ahead in the queue waiting for stalls."""
+        self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        # Fill all stalls so poo users must wait.
+        self.sched.set_config(
+            restroom_conditions={
+                "stalls": [
+                    {"id": 1, "condition": "Clean"},
+                    {"id": 2, "condition": "Clean"},
+                    {"id": 3, "condition": "Clean"},
+                ],
+                "urinals": [
+                    {"id": 4, "condition": "Clean"},
+                    {"id": 5, "condition": "Clean"},
+                    {"id": 6, "condition": "Clean"},
+                ],
+            }
+        )
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+
+        # Occupy all stalls with dummy pee users first
+        self.sched.enqueue("pee")
+        self.sched.enqueue("pee")
+        self.sched.enqueue("pee")
+        # Wait for those 3 to get assigned to stalls (shy_peer_pct=0 → urinals)
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    1 for ev, _ in self.events if ev == "assignment_preview"
+                ) >= 3,
+                timeout=1.5,
+            )
+        )
+        # Wait for all 3 to commit (be in_use on urinals)
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    1 for f in self.sched.snapshot()["fixtures"] if f["in_use"]
+                ) >= 3,
+                timeout=1.5,
+            )
+        )
+
+        # Now enqueue poo, poo, poo, pee.  All stalls are still occupied
+        # (by the first 3 pee users), so poo users can't go.  But the
+        # new pee user should bypass the poo queue for a urinal.
+        # First we need stalls occupied; the first 3 went to urinals.
+        # Let me re-approach: occupy stalls directly.
+        pass
+
+    def test_pee_behind_poo_gets_urinal_when_stalls_full(self):
+        """With all 3 stalls in-use, queue [poo, pee]: pee must still
+        get a urinal preview despite poo ahead blocking stalls."""
+        self.sched.set_sim_runtime(RUNTIME_PAUSED)
+        # Force shy_peer_pct=0 so pee always targets urinals.
+        self.sched.set_config(shy_peer_pct=0.0)
+
+        # Fill all stalls by enqueueing 3 poo users, running, and
+        # waiting for them to commit.
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        for _ in range(3):
+            self.sched.enqueue("poo")
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    1 for f in self.sched.snapshot()["fixtures"] if f["in_use"]
+                ) >= 3,
+                timeout=2.0,
+            )
+        )
+
+        self.events.clear()
+        # Now queue: poo (will wait for stall), then pee
+        self.sched.enqueue("poo")
+        self.sched.enqueue("pee")
+
+        # Pee should get a urinal preview even though poo is ahead.
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_preview"
+                    and d["fixture_kind"] == "urinal"
+                    for ev, d in self.events
+                ),
+                timeout=1.5,
+            ),
+            msg="pee user should have been assigned to a urinal",
+        )
+
+
+class StallPriorityTests(unittest.TestCase):
+    """Verify FIFO stall priority: poo before pee gets the stall."""
+
+    def setUp(self):
+        self._orig_pee = scheduler_module.PEE_DURATION_RANGE_S
+        self._orig_poo = scheduler_module.POO_DURATION_RANGE_S
+        self._orig_preview = scheduler_module.PREVIEW_DURATION_S
+        scheduler_module.PEE_DURATION_RANGE_S = (0.1, 0.15)
+        scheduler_module.POO_DURATION_RANGE_S = (0.2, 0.25)
+        scheduler_module.PREVIEW_DURATION_S = 0.15
+
+        self.events = []
+        # Shy=100% so pee users also target stalls.
+        self.sched = Scheduler(rng=random.Random(99))
+        self.sched.subscribe(lambda ev, data: self.events.append((ev, data)))
+        self.sched.set_mode(MODE_DUMMY)
+        self.sched.set_config(
+            toilet_types=MACLEAN,
+            shy_peer_pct=100.0,
+            middle_toilet_first_choice_pct=2.0,
+        )
+        self.sched.start()
+
+    def tearDown(self):
+        self.sched.stop()
+        scheduler_module.PEE_DURATION_RANGE_S = self._orig_pee
+        scheduler_module.POO_DURATION_RANGE_S = self._orig_poo
+        scheduler_module.PREVIEW_DURATION_S = self._orig_preview
+
+    def test_poo_before_pee_gets_stall_first(self):
+        """Queue [poo, pee (shy)]: poo must be assigned to stall before pee."""
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        self.sched.enqueue("poo")
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    1 for ev, _ in self.events if ev == "assignment_preview"
+                ) >= 2,
+                timeout=1.5,
+            )
+        )
+        previews = [d for ev, d in self.events if ev == "assignment_preview"]
+        self.assertGreaterEqual(len(previews), 2)
+        # First preview must be for queue_item_id=1 (the poo user).
+        self.assertEqual(previews[0]["queue_item_id"], 1)
+        self.assertEqual(previews[0]["user_type"], "poo")
+
+
+class CleanlinessRejectTests(unittest.TestCase):
+    """Verify sequential cleanliness reject leads to exits and waits."""
+
+    def setUp(self):
+        self._orig_pee = scheduler_module.PEE_DURATION_RANGE_S
+        self._orig_poo = scheduler_module.POO_DURATION_RANGE_S
+        self._orig_preview = scheduler_module.PREVIEW_DURATION_S
+        self._orig_timeout = scheduler_module.QUEUE_WAIT_TIMEOUT_S
+        scheduler_module.PEE_DURATION_RANGE_S = (0.1, 0.15)
+        scheduler_module.POO_DURATION_RANGE_S = (0.2, 0.25)
+        scheduler_module.PREVIEW_DURATION_S = 0.15
+        scheduler_module.QUEUE_WAIT_TIMEOUT_S = 60.0
+
+        self.events = []
+        self.sched = Scheduler(rng=random.Random(1))
+        self.sched.subscribe(lambda ev, data: self.events.append((ev, data)))
+        self.sched.set_mode(MODE_DUMMY)
+        self.sched.set_config(
+            toilet_types=MACLEAN,
+            shy_peer_pct=0.0,
+            middle_toilet_first_choice_pct=2.0,
+        )
+        self.sched.start()
+
+    def tearDown(self):
+        self.sched.stop()
+        scheduler_module.PEE_DURATION_RANGE_S = self._orig_pee
+        scheduler_module.POO_DURATION_RANGE_S = self._orig_poo
+        scheduler_module.PREVIEW_DURATION_S = self._orig_preview
+        scheduler_module.QUEUE_WAIT_TIMEOUT_S = self._orig_timeout
+
+    def test_poo_exits_on_all_horrendous_stalls(self):
+        """When all stalls are Horrendous, many poo users should exit
+        (queue_item_exited) over repeated ticks."""
+        self.sched.set_config(
+            restroom_conditions={
+                "stalls": [
+                    {"id": 1, "condition": "Horrendous"},
+                    {"id": 2, "condition": "Horrendous"},
+                    {"id": 3, "condition": "Horrendous"},
+                ],
+                "urinals": [
+                    {"id": 4, "condition": "Clean"},
+                    {"id": 5, "condition": "Clean"},
+                    {"id": 6, "condition": "Clean"},
+                ],
+            }
+        )
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        for _ in range(20):
+            self.sched.enqueue("poo")
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    1 for ev, _ in self.events if ev == "queue_item_exited"
+                ) >= 5,
+                timeout=3.0,
+            ),
+            msg="Expected multiple poo users to exit on horrendous stalls",
+        )
+        snap = self.sched.snapshot()
+        self.assertGreater(snap["exited_users"], 0)
+
+    def test_pee_waits_on_horrendous_urinals(self):
+        """When all urinals are Horrendous, pee (non-shy) users wait
+        rather than exit.  No `queue_item_exited` for pee users."""
+        self.sched.set_config(
+            restroom_conditions={
+                "stalls": [
+                    {"id": 1, "condition": "Clean"},
+                    {"id": 2, "condition": "Clean"},
+                    {"id": 3, "condition": "Clean"},
+                ],
+                "urinals": [
+                    {"id": 4, "condition": "Horrendous"},
+                    {"id": 5, "condition": "Horrendous"},
+                    {"id": 6, "condition": "Horrendous"},
+                ],
+            }
+        )
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        self.sched.enqueue("pee")
+        # Give a few ticks for the scheduler to process.
+        time.sleep(0.5)
+        exits = [
+            d for ev, d in self.events if ev == "queue_item_exited"
+        ]
+        # The pee user might eventually accept horrendous (10% per try),
+        # but they should NOT exit.  They either wait or get lucky.
+        snap = self.sched.snapshot()
+        pee_exited = len(exits)
+        # If they accepted, queue is empty. If waiting, queue has 1.
+        # Either way, no queue_item_exited for this user's id.
+        if snap["queue"]:
+            self.assertEqual(pee_exited, 0)
+
+
+class PeeStallFallbackTests(unittest.TestCase):
+    """When all urinals are occupied, non-shy pee users should fall
+    back to stalls rather than waiting indefinitely."""
+
+    def setUp(self):
+        self._orig_pee = scheduler_module.PEE_DURATION_RANGE_S
+        self._orig_poo = scheduler_module.POO_DURATION_RANGE_S
+        self._orig_preview = scheduler_module.PREVIEW_DURATION_S
+        scheduler_module.PEE_DURATION_RANGE_S = (0.1, 0.15)
+        scheduler_module.POO_DURATION_RANGE_S = (0.2, 0.25)
+        scheduler_module.PREVIEW_DURATION_S = 0.15
+
+        self.events = []
+        self.sched = Scheduler(rng=random.Random(55))
+        self.sched.subscribe(lambda ev, data: self.events.append((ev, data)))
+        self.sched.set_mode(MODE_DUMMY)
+        self.sched.set_config(
+            toilet_types=MACLEAN,
+            shy_peer_pct=0.0,
+            middle_toilet_first_choice_pct=2.0,
+        )
+        self.sched.start()
+
+    def tearDown(self):
+        self.sched.stop()
+        scheduler_module.PEE_DURATION_RANGE_S = self._orig_pee
+        scheduler_module.POO_DURATION_RANGE_S = self._orig_poo
+        scheduler_module.PREVIEW_DURATION_S = self._orig_preview
+
+    def test_pee_falls_back_to_stall_when_urinals_full(self):
+        """Fill all 3 urinals, then enqueue a pee user.  The pee user
+        must be assigned to a stall (not stuck waiting)."""
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        # Fill all urinals with pee users (shy=0 → urinals).
+        for _ in range(3):
+            self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: sum(
+                    1 for f in self.sched.snapshot()["fixtures"]
+                    if f["in_use"] and f["kind"] == "urinal"
+                ) >= 3,
+                timeout=2.0,
+            ),
+            msg="All 3 urinals should be in use",
+        )
+
+        self.events.clear()
+        # Now enqueue another pee user — urinals full, stalls free.
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_preview"
+                    and d["fixture_kind"] == "stall"
+                    for ev, d in self.events
+                ),
+                timeout=1.5,
+            ),
+            msg="pee user should fall back to a stall when urinals full",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

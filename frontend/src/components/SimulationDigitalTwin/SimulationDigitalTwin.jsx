@@ -112,20 +112,26 @@ export default function SimulationDigitalTwin({
                   isStall && !row.outOfOrder && (row.usagePct ?? 0) > 0;
                 const urinalOccupied =
                   isUrinal && (row.usagePct ?? 0) > 0;
-                const stallUser = stallOccupied ? fixtureUsers[row.id] : null;
-                const urinalUser = urinalOccupied ? fixtureUsers[row.id] : null;
-                // Scheduler snapshot ships the active user's type
-                // (`pee` / `poo`) per fixture; fall back to `pee` only
-                // when a fixture is reported busy without a user object
-                // (brief race during an assignment_started event).
+                // Include completing users (exitState=completed) so
+                // the 1 s green flash still has user identity + color.
+                const fixtureUser = fixtureUsers[row.id] ?? null;
+                const stallUser =
+                  isStall && !row.outOfOrder && (stallOccupied || fixtureUser)
+                    ? fixtureUser
+                    : null;
+                const urinalUser =
+                  isUrinal && (urinalOccupied || fixtureUser)
+                    ? fixtureUser
+                    : null;
                 const stallFillColor = row.outOfOrder
                   ? "empty"
-                  : stallOccupied
+                  : stallOccupied || stallUser
                   ? stallUser?.userType === "poo"
                     ? "poo"
                     : "pee"
                   : "empty";
-                const urinalFillColor = urinalOccupied
+                const urinalFillColor =
+                  urinalOccupied || urinalUser
                   ? urinalUser?.userType === "poo"
                     ? "poo"
                     : "pee"
@@ -173,6 +179,7 @@ export default function SimulationDigitalTwin({
                         <UrinalContainer
                           id={row.id}
                           usagePct={row.usagePct}
+                          outOfOrder={row.outOfOrder || false}
                           fillColor={urinalFillColor}
                           activeUser={urinalUser}
                           useCount={row.useCount}

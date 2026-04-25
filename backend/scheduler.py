@@ -34,7 +34,9 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
 from behavioral_model import (
     compute_candidate_weights,
+    compute_group_etiquette_shares,
     conditions_from_frontend_payload,
+    pick_sequential,
     pick_weighted,
 )
 
@@ -88,6 +90,11 @@ class QueueItem:
     # can show a stable "time in front of toilet" label on the queued
     # user that matches the countdown once they commit to a fixture.
     duration_s: float = 0.0
+    # For pee users: True means this user is a "shy pee-er" who will
+    # only use stalls; False means they target urinals. Sampled at
+    # enqueue time from shy_peer_pct so the two-pass non-blocking
+    # scheduler can route users deterministically.
+    prefers_stall: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -96,6 +103,7 @@ class QueueItem:
             "enqueued_at": self.enqueued_at,
             "enqueued_at_sim_s": self.enqueued_at_sim_s,
             "duration_s": self.duration_s,
+            "prefers_stall": self.prefers_stall,
         }
 
 
@@ -362,12 +370,25 @@ class Scheduler:
             return {"ok": False, "error": f"invalid user type {user_type!r}"}
         with self._lock:
             at_sim = self._sim_time_s
+            prefers_stall = False
+            if u == "pee":
+                has_urinals = any(
+                    str(t).lower() == "urinal"
+                    for t in self._config.toilet_types
+                )
+                if has_urinals:
+                    prefers_stall = (
+                        self._rng.random() < self._config.shy_peer_pct / 100.0
+                    )
+                else:
+                    prefers_stall = True
             item = QueueItem(
                 id=self._next_queue_id,
                 type=u,
                 enqueued_at=time.time(),
                 enqueued_at_sim_s=at_sim,
                 duration_s=self._sample_duration(u),
+                prefers_stall=prefers_stall,
             )
             self._next_queue_id += 1
             self._queue.append(item)
@@ -376,7 +397,6 @@ class Scheduler:
             if self._started_at is None:
                 self._started_at = time.time()
         self._emit("queue_updated", {"queue": [q.to_dict() for q in self._queue_copy()]})
-        # Try to assign immediately so small queues feel instantaneous.
         self._try_assign()
         return {"ok": True, "item": item.to_dict()}
 
@@ -593,79 +613,158 @@ class Scheduler:
         )
         return self._rng.uniform(lo, hi)
 
+    def _free_indices_by_kind(self, kind: str) -> List[int]:
+        """0-based indices of free, non-reserved fixtures of *kind*."""
+        result: List[int] = []
+        for i, t in enumerate(self._config.toilet_types):
+            if str(t).lower() != kind:
+                continue
+            f = self._fixtures[i + 1]
+            if f.kind == "nonexistent" or f.in_use or f.reserved:
+                continue
+            result.append(i)
+        return result
+
+    def _reserve_fixture(
+        self,
+        pick_idx: int,
+        head: QueueItem,
+        now: float,
+        shares: Dict[int, float],
+    ) -> Dict[str, Any]:
+        """Write reservation state onto fixture and return a preview event payload."""
+        fixture = self._fixtures[pick_idx + 1]
+        duration = head.duration_s or self._sample_duration(head.type)
+        fixture.reserved = True
+        fixture.reserved_until = now + PREVIEW_DURATION_S
+        fixture.reserved_user_type = head.type
+        fixture.reserved_queue_item_id = head.id
+        fixture.reserved_duration_s = duration
+        fixture.preview_started_sim_s = self._sim_time_s
+        return {
+            "queue_item_id": head.id,
+            "user_type": head.type,
+            "fixture_id": fixture.id,
+            "fixture_kind": fixture.kind,
+            "duration_s": duration,
+            "reserved_until": fixture.reserved_until,
+            "preview_duration_s": PREVIEW_DURATION_S,
+            "sim_time_s": self._sim_time_s,
+            "shares": {str(k + 1): v for k, v in shares.items()},
+        }
+
     def _try_assign(self) -> None:
         """
-        Attempt to reserve free eligible fixtures for queued users.
+        Non-blocking two-pass assignment.
 
-        A reservation is the "preview" step before real occupancy: the
-        queue head is *not* popped yet, the fixture's `in_use` stays
-        False, and we emit `assignment_preview` so the UI can animate
-        an arrow + user icon traveling from queue to fixture for
-        ``PREVIEW_DURATION_S`` seconds. `_commit_reservations` promotes
-        each reservation into a real assignment once the preview window
-        elapses.
+        **Urinal pass** — iterates the queue for non-shy pee users and
+        assigns them to free urinals via sequential cleanliness
+        evaluation.  If a pee user rejects every urinal (bad
+        cleanliness), they *wait* (stay queued) and the urinal pass
+        stops for this tick.
 
-        Head-blocks-queue: if the first non-reserved queue item can't
-        be placed (e.g. pooer with no free stall), nobody behind them
-        is reserved either. Items already in preview are skipped.
+        **Stall pass** — iterates the queue in FIFO order for poo users
+        and shy-pee users.  If a user rejects all available stalls they
+        *exit* immediately.  The next user can still try the same
+        stalls (a different RNG roll may accept).
+
+        This replaces the old head-blocks-queue policy so pee users can
+        reach urinals while poo users wait for stalls.
         """
         if self._mode != MODE_DUMMY or self._runtime != RUNTIME_RUNNING:
             return
+
         preview_events: List[Dict[str, Any]] = []
+        exit_events: List[Dict[str, Any]] = []
+
         with self._lock:
-            reserved_ids = {
+            reserved_ids: set = {
                 f.reserved_queue_item_id
                 for f in self._fixtures.values()
                 if f.reserved and f.reserved_queue_item_id is not None
             }
+
+            now = time.time()
+            conds = self._conditions_by_index()
+            free_urinals = self._free_indices_by_kind("urinal")
+            free_stalls = self._free_indices_by_kind("stall")
+
+            # ---- urinal pass (non-shy pee users) ----
             for head in list(self._queue):
                 if head.id in reserved_ids:
-                    # Already in preview on some fixture; try next in line.
                     continue
-                free = self._eligible_free_indices()
-                if not free:
+                if head.type != "pee" or head.prefers_stall:
+                    continue
+                if not free_urinals:
                     break
-                weights = compute_candidate_weights(
+
+                shares = compute_group_etiquette_shares(
                     toilet_types=self._config.toilet_types,
-                    conditions_by_index=self._conditions_by_index(),
-                    free_indices=free,
-                    user_type=head.type,
-                    shy_peer_pct=self._config.shy_peer_pct,
+                    conditions_by_index=conds,
+                    free_indices=free_urinals,
                     middle_pct=self._config.middle_toilet_first_choice_pct,
+                    group_kind="urinal",
                 )
-                pick_idx = pick_weighted(weights, self._rng)
-                if pick_idx is None:
-                    # No eligible candidate for *this* user type right now.
+                if not shares:
                     break
-                fixture = self._fixtures[pick_idx + 1]
-                # Reuse the duration sampled at enqueue time so the
-                # label the UI showed while the user was queued matches
-                # the countdown that starts once they reach the toilet.
-                duration = head.duration_s or self._sample_duration(head.type)
-                now = time.time()
-                fixture.reserved = True
-                fixture.reserved_until = now + PREVIEW_DURATION_S
-                fixture.reserved_user_type = head.type
-                fixture.reserved_queue_item_id = head.id
-                fixture.reserved_duration_s = duration
-                fixture.preview_started_sim_s = self._sim_time_s
-                reserved_ids.add(head.id)
-                preview_events.append(
-                    {
-                        "queue_item_id": head.id,
-                        "user_type": head.type,
-                        "fixture_id": fixture.id,
-                        "fixture_kind": fixture.kind,
-                        "duration_s": duration,
-                        "reserved_until": fixture.reserved_until,
-                        "preview_duration_s": PREVIEW_DURATION_S,
-                        "sim_time_s": self._sim_time_s,
-                        "weights": {str(k + 1): v for k, v in weights.items()},
-                    }
+
+                pick_idx = pick_sequential(shares, conds, self._rng)
+                if pick_idx is not None:
+                    ev = self._reserve_fixture(pick_idx, head, now, shares)
+                    preview_events.append(ev)
+                    reserved_ids.add(head.id)
+                    free_urinals.remove(pick_idx)
+                else:
+                    break  # pee user rejects → wait; stop urinal pass
+
+            # ---- stall pass (poo users + shy pee users, FIFO) ----
+            users_to_remove: List[QueueItem] = []
+            for head in list(self._queue):
+                if head.id in reserved_ids:
+                    continue
+                if head.type == "pee" and not head.prefers_stall:
+                    if free_urinals:
+                        continue  # urinals still available, skip stall pass
+                if not free_stalls:
+                    break
+
+                shares = compute_group_etiquette_shares(
+                    toilet_types=self._config.toilet_types,
+                    conditions_by_index=conds,
+                    free_indices=free_stalls,
+                    middle_pct=self._config.middle_toilet_first_choice_pct,
+                    group_kind="stall",
                 )
+                if not shares:
+                    break  # no viable stalls (all OoO etc.)
+
+                pick_idx = pick_sequential(shares, conds, self._rng)
+                if pick_idx is not None:
+                    ev = self._reserve_fixture(pick_idx, head, now, shares)
+                    preview_events.append(ev)
+                    reserved_ids.add(head.id)
+                    free_stalls.remove(pick_idx)
+                else:
+                    users_to_remove.append(head)
+                    self._exited_users += 1
+                    exit_events.append({"queue_item_id": head.id})
+
+            if users_to_remove:
+                remove_ids = {u.id for u in users_to_remove}
+                self._queue[:] = [
+                    q for q in self._queue if q.id not in remove_ids
+                ]
+
         for ev in preview_events:
             self._emit("assignment_preview", ev)
-        if preview_events:
+        for ev in exit_events:
+            self._emit("queue_item_exited", ev)
+        if exit_events:
+            self._emit(
+                "queue_updated",
+                {"queue": [q.to_dict() for q in self._queue_copy()]},
+            )
+        if preview_events or exit_events:
             self._emit_state()
 
     def _commit_reservations(self) -> None:

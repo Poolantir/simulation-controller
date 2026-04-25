@@ -29,6 +29,19 @@ Rules
   candidate before normalisation. Fixtures with T.C==0 (Out-of-Order,
   In-Use, Currently Being Cleaned, Non-Existent) are effectively
   excluded.
+
+Sequential evaluation (``pick_sequential``)
+-------------------------------------------
+The spec describes an "in succession" rule: the user picks a fixture
+from the etiquette distribution, then accepts/rejects based on
+cleanliness (T.C).  On rejection the fixture is removed from the
+candidate set, the etiquette shares re-normalise, and the user tries
+again.  Only when *every* candidate is rejected does the user leave
+(poo) or wait (pee at urinals).
+
+``compute_group_etiquette_shares`` + ``pick_sequential`` implement
+this two-stage model and are used by the scheduler for all Dummy-mode
+assignments.
 """
 
 from __future__ import annotations
@@ -204,6 +217,72 @@ def compute_candidate_weights(
     return {i: w / total for i, w in merged.items()}
 
 
+def compute_group_etiquette_shares(
+    *,
+    toilet_types: Sequence[str],
+    conditions_by_index: Dict[int, str],
+    free_indices: Sequence[int],
+    middle_pct: float,
+    group_kind: str,
+) -> Dict[int, float]:
+    """
+    Etiquette-only shares for free fixtures of *group_kind* (`"stall"` or
+    `"urinal"`).  Fixtures with T.C==0 are pre-filtered so only viable
+    candidates participate.  Shares sum to 1.0 (or empty dict when no
+    viable candidate exists).
+    """
+    group_idx = _group_indices(toilet_types, group_kind)
+    free_set = set(free_indices)
+    free_in_group = [
+        i
+        for i in group_idx
+        if i in free_set
+        and toilet_cleanliness_weight(conditions_by_index.get(i, "Clean")) > 0
+    ]
+    if not free_in_group:
+        return {}
+    return _layout_shares(group_idx, free_in_group, middle_pct)
+
+
+def pick_sequential(
+    shares: Dict[int, float],
+    conditions_by_index: Dict[int, str],
+    rng,
+) -> int | None:
+    """
+    Sequential evaluation matching the spec's "in succession" rule.
+
+    1. Sample a fixture from the etiquette distribution.
+    2. Accept with probability T.C (cleanliness).  If rejected, remove
+       that fixture, re-normalise the remaining shares, and repeat.
+    3. Return the accepted fixture index, or ``None`` if every candidate
+       was rejected (caller decides: exit vs wait).
+    """
+    candidates = dict(shares)
+    while candidates:
+        total = sum(candidates.values())
+        if total <= 0:
+            return None
+        r = rng.random() * total
+        acc = 0.0
+        chosen = None
+        for idx, share in candidates.items():
+            acc += share
+            if r <= acc:
+                chosen = idx
+                break
+        if chosen is None:
+            chosen = list(candidates.keys())[-1]
+
+        tc = toilet_cleanliness_weight(conditions_by_index.get(chosen, "Clean"))
+        if rng.random() < tc:
+            return chosen
+
+        del candidates[chosen]
+
+    return None
+
+
 def pick_weighted(weights: Dict[int, float], rng) -> int | None:
     """Return a key sampled from `weights`, or None if empty."""
     if not weights:
@@ -258,6 +337,8 @@ def conditions_from_frontend_payload(
 __all__ = [
     "toilet_cleanliness_weight",
     "compute_candidate_weights",
+    "compute_group_etiquette_shares",
+    "pick_sequential",
     "pick_weighted",
     "empty_conditions_for_types",
     "conditions_from_frontend_payload",
