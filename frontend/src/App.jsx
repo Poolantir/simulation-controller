@@ -221,7 +221,10 @@ export default function App() {
   }, [appMode, simulationStatus]);
 
   useEffect(() => {
-    if (appMode !== APP_MODE_DUMMY || simulationStatus !== "running")
+    if (
+      (appMode !== APP_MODE_DUMMY && appMode !== APP_MODE_SIM) ||
+      simulationStatus !== "running"
+    )
       return undefined;
     // Re-anchor: after pause, wall clock gap must not add to sim time.
     // Also fixes first play before first SSE (refs were 0,0).

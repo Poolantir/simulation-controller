@@ -122,7 +122,7 @@ On each tick (and after each enqueue), the scheduler runs `_try_assign()`:
 - Pee users who still have free urinals available are skipped (they belong
   to the urinal pass)
 
-### 5. Reservation → Commit → BLE Send
+### 5. Reservation → Commit → ACK-gated Start
 
 When `_try_assign()` picks a fixture for a user:
 
@@ -132,17 +132,30 @@ When `_try_assign()` picks a fixture for a user:
 
 After the 3-second preview elapses (`_commit_reservations()`):
 
-1. Reservation promotes to **in_use**
-2. Queue item is removed from the queue
-3. **SIM mode**: scheduler sends the BLE command to the assigned node:
+**SIM mode** — ACK-gated:
+
+1. Reservation stays on the fixture (UI keeps showing the arrow)
+2. Scheduler sends the BLE command to the assigned node:
    ```json
    {"command":"SIM","id":"<queue_item_id>","type":"NEW","action":{"duration_s": <float>}}
    ```
-   `busy_until` is set to `null` — the ESP32 owns the occupancy timer.
-4. **DUMMY mode**: `busy_until` = `now + duration_s` — the scheduler's tick
-   loop manages the timer internally.
-5. Scheduler emits `assignment_started` SSE event
-6. Scheduler emits `queue_updated` SSE event
+3. If the BLE write succeeds (ESP32 acknowledged receipt):
+   - Reservation promotes to **in_use**
+   - `busy_until` = `now + duration_s` (for frontend countdown display)
+   - Queue item is removed from the queue
+   - Scheduler emits `assignment_started` (with `busy_until`) and
+     `queue_updated` SSE events
+4. If the BLE write fails:
+   - Reservation is cancelled (`assignment_preview_cancelled` emitted)
+   - User stays in the queue and may be reassigned on a future tick
+
+**DUMMY mode** — immediate:
+
+1. Reservation promotes to **in_use**
+2. `busy_until` = `now + duration_s` — the scheduler's tick loop manages the
+   timer internally
+3. Queue item is removed from the queue
+4. Scheduler emits `assignment_started` and `queue_updated` SSE events
 
 ### 6. Occupancy & Completion
 
@@ -158,6 +171,10 @@ After the 3-second preview elapses (`_commit_reservations()`):
 - Scheduler releases the fixture, increments `satisfied_users` (or
   `exited_users` on failure), and emits `assignment_completed`
 - Scheduler immediately calls `_try_assign()` to fill the newly free fixture
+- Note: `_release_completed()` (timer-based) is skipped entirely in SIM mode;
+  the `busy_until` deadline is used only for the frontend countdown, not for
+  server-side release. This prevents double-release if the ESP32's internal
+  timer and the server clock drift apart.
 
 **DUMMY mode** — timer-driven:
 

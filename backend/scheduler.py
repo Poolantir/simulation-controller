@@ -833,22 +833,29 @@ class Scheduler:
     def _commit_reservations(self) -> None:
         """
         Promote any reservation whose preview window has elapsed into
-        a real assignment: flip `in_use`, start the occupancy countdown
-        from *now*, pop the queue item, and emit `assignment_started`
-        (plus `queue_updated`).
+        a real assignment: flip ``in_use``, start the occupancy countdown
+        from *now*, pop the queue item, and emit ``assignment_started``
+        (plus ``queue_updated``).
 
-        In SIM mode the occupancy countdown is omitted (`busy_until`
-        stays ``None``): the real ESP32 manages the timer and reports
-        ``SIM COMPLETE`` back via BLE. A ``SIM NEW`` command is sent to
-        the node on commit.
+        **ACK-gated start (SIM mode)** — the BLE write to the ESP32
+        acts as an acknowledgement gate.  The fixture transitions to
+        ``in_use`` and exposes ``busy_until`` (for the frontend
+        countdown) *only* after ``_send_to_node`` returns successfully.
+        If the write fails the reservation is cancelled and the user
+        stays in the queue.  Actual completion is still driven by the
+        ESP32's ``SIM COMPLETE`` notification (see ``notify_complete``);
+        ``_release_completed`` skips SIM-mode fixtures.
+
+        **DUMMY mode** — ``busy_until`` drives both the frontend
+        countdown and the server-side release in ``_release_completed``.
 
         Reservations commit in chronological order (earliest
-        `reserved_until` first) so `assignment_started` events preserve
-        FIFO queueing even when multiple fixtures elapse in the same
-        tick.
+        ``reserved_until`` first) so ``assignment_started`` events
+        preserve FIFO queueing even when multiple fixtures elapse in
+        the same tick.
         """
-        commit_events: List[Dict[str, Any]] = []
-        sim_sends: List[tuple] = []
+        dummy_events: List[Dict[str, Any]] = []
+        sim_pending: List[Dict[str, Any]] = []
         queue_changed = False
         is_sim = False
         with self._lock:
@@ -868,75 +875,154 @@ class Scheduler:
                 duration = fixture.reserved_duration_s
                 if duration is None:
                     duration = self._sample_duration(user_type)
-                fixture.reserved = False
-                fixture.reserved_until = None
-                fixture.reserved_user_type = None
-                fixture.reserved_queue_item_id = None
-                fixture.reserved_duration_s = None
-                fixture.preview_started_sim_s = None
-                fixture.in_use = True
                 if is_sim:
-                    fixture.busy_until = None
-                else:
-                    fixture.busy_until = now + duration
-                fixture.current_user_type = user_type
-                fixture.current_queue_item_id = queue_item_id
-                fixture.current_duration_s = duration
-                if queue_item_id is not None:
-                    for i, q in enumerate(self._queue):
-                        if q.id == queue_item_id:
-                            self._queue.pop(i)
-                            queue_changed = True
-                            break
-                commit_events.append(
-                    {
-                        "queue_item_id": queue_item_id,
+                    # Collect for ACK-gated commit; reservation stays
+                    # on the fixture so the UI keeps showing the arrow
+                    # during the (brief) BLE round-trip.
+                    sim_pending.append({
+                        "fixture": fixture,
                         "user_type": user_type,
-                        "fixture_id": fixture.id,
-                        "fixture_kind": fixture.kind,
-                        "duration_s": duration,
-                        "busy_until": fixture.busy_until,
-                    }
-                )
-                if is_sim:
-                    sim_sends.append((
-                        fixture.id,
+                        "queue_item_id": queue_item_id,
+                        "duration": duration,
+                    })
+                else:
+                    fixture.reserved = False
+                    fixture.reserved_until = None
+                    fixture.reserved_user_type = None
+                    fixture.reserved_queue_item_id = None
+                    fixture.reserved_duration_s = None
+                    fixture.preview_started_sim_s = None
+                    fixture.in_use = True
+                    fixture.busy_until = now + duration
+                    fixture.current_user_type = user_type
+                    fixture.current_queue_item_id = queue_item_id
+                    fixture.current_duration_s = duration
+                    if queue_item_id is not None:
+                        for i, q in enumerate(self._queue):
+                            if q.id == queue_item_id:
+                                self._queue.pop(i)
+                                queue_changed = True
+                                break
+                    dummy_events.append(
                         {
-                            "command": "SIM",
-                            "id": str(queue_item_id),
-                            "type": "NEW",
-                            "action": {"duration_s": round(duration, 1)},
-                        },
-                    ))
-        if sim_sends and self._send_to_node:
-            for node_id, payload in sim_sends:
+                            "queue_item_id": queue_item_id,
+                            "user_type": user_type,
+                            "fixture_id": fixture.id,
+                            "fixture_kind": fixture.kind,
+                            "duration_s": duration,
+                            "busy_until": fixture.busy_until,
+                        }
+                    )
+
+        # SIM mode: send BLE, commit only on ACK
+        sim_events: List[Dict[str, Any]] = []
+        sim_cancelled: List[Dict[str, Any]] = []
+        for item in sim_pending:
+            fixture = item["fixture"]
+            node_id = fixture.id
+            qid = item["queue_item_id"]
+            dur = item["duration"]
+            payload = {
+                "command": "SIM",
+                "id": str(qid),
+                "type": "NEW",
+                "action": {"duration_s": round(dur, 1)},
+            }
+            ack_ok = False
+            if self._send_to_node:
                 try:
                     result = self._send_to_node(node_id, payload)
-                    if not result.get("ok"):
+                    ack_ok = bool(result.get("ok"))
+                    if not ack_ok:
                         log.warning(
                             "SIM NEW to node %d failed: %s",
                             node_id, result.get("error"),
                         )
                 except Exception:
                     log.exception("SIM NEW to node %d raised", node_id)
-        for ev in commit_events:
+            else:
+                ack_ok = True
+
+            with self._lock:
+                # Reservation may have been invalidated during the BLE
+                # round-trip (reset / mode switch / pause-cancel).
+                if (
+                    not fixture.reserved
+                    or fixture.reserved_queue_item_id != qid
+                ):
+                    continue
+                if ack_ok:
+                    now_ack = time.time()
+                    fixture.reserved = False
+                    fixture.reserved_until = None
+                    fixture.reserved_user_type = None
+                    fixture.reserved_queue_item_id = None
+                    fixture.reserved_duration_s = None
+                    fixture.preview_started_sim_s = None
+                    fixture.in_use = True
+                    if self._runtime == RUNTIME_RUNNING:
+                        fixture.busy_until = now_ack + dur
+                    else:
+                        fixture.busy_until = None
+                        fixture.occupancy_remaining_s = dur
+                    fixture.current_user_type = item["user_type"]
+                    fixture.current_queue_item_id = qid
+                    fixture.current_duration_s = dur
+                    if qid is not None:
+                        for i, q in enumerate(self._queue):
+                            if q.id == qid:
+                                self._queue.pop(i)
+                                queue_changed = True
+                                break
+                    sim_events.append(
+                        {
+                            "queue_item_id": qid,
+                            "user_type": item["user_type"],
+                            "fixture_id": fixture.id,
+                            "fixture_kind": fixture.kind,
+                            "duration_s": dur,
+                            "busy_until": fixture.busy_until,
+                        }
+                    )
+                else:
+                    fixture.reserved = False
+                    fixture.reserved_until = None
+                    fixture.reserved_user_type = None
+                    fixture.reserved_queue_item_id = None
+                    fixture.reserved_duration_s = None
+                    fixture.preview_started_sim_s = None
+                    sim_cancelled.append(
+                        {
+                            "queue_item_id": qid,
+                            "fixture_id": fixture.id,
+                            "fixture_kind": fixture.kind,
+                            "user_type": item["user_type"],
+                        }
+                    )
+
+        all_events = dummy_events + sim_events
+        for ev in all_events:
             qid = ev.get("queue_item_id", "?")
             fid = ev.get("fixture_id", "?")
             server_log.publish_line(
                 f"[SCHEDULER] sending user {qid} to toilet {fid}"
             )
             self._emit("assignment_started", ev)
+        for ev in sim_cancelled:
+            self._emit("assignment_preview_cancelled", ev)
         if queue_changed:
             self._emit(
                 "queue_updated",
                 {"queue": [q.to_dict() for q in self._queue_copy()]},
             )
-        if commit_events:
+        if all_events or sim_cancelled:
             self._emit_state()
 
     def _release_completed(self) -> None:
         released: List[Dict[str, Any]] = []
         with self._lock:
+            if self._mode == MODE_SIM:
+                return
             now = time.time()
             for fixture in self._fixtures.values():
                 if (
@@ -1030,6 +1116,7 @@ class Scheduler:
             user_type = fixture.current_user_type
             fixture.in_use = False
             fixture.busy_until = None
+            fixture.occupancy_remaining_s = None
             fixture.current_user_type = None
             fixture.current_queue_item_id = None
             fixture.current_duration_s = None
