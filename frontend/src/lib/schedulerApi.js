@@ -75,6 +75,11 @@ export function resetScheduler() {
   return postJson("/api/scheduler/reset");
 }
 
+/** Post a client-originated log line to the server log bus (SIM queue actions). */
+export function postServerLogLine(line) {
+  return postJson("/api/server-log", { line });
+}
+
 /**
  * Push a config snapshot to the scheduler. Any field omitted is left
  * untouched on the backend. `restroom_conditions` accepts the frontend
@@ -114,6 +119,7 @@ const SCHEDULER_EVENT_NAMES = [
   "config_updated",
   "sim_runtime_changed",
   "reset",
+  "server_log",
 ];
 
 /**

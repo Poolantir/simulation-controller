@@ -1,12 +1,15 @@
 @import "../../styles.css";
 
 .test-connections-panel {
+  /* compact row: input stretches to this height to match Set button */
+  --testbench-inline-row-h: 1.875rem;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  margin: var(--space-5);
+  /* left margin 0: gutter = sidebar padding-right only (= --space-5, same as gap between sidebar cards) */
+  margin: var(--space-5) var(--space-5) var(--space-5) 0;
   padding: var(--space-5);
   gap: var(--space-4);
   box-sizing: border-box;
@@ -14,26 +17,6 @@
   background: var(--color-surface);
   border: var(--border-default);
   border-radius: var(--radius-lg);
-}
-
-.test-connections-panel__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  flex-shrink: 0;
-}
-
-.test-connections-panel__title {
-  font-weight: var(--font-weight-bold) !important;
-  font-size: var(--font-size-lg) !important;
-  color: var(--color-text);
-  margin: 0 !important;
-}
-
-.test-connections-panel__hint {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  margin: 0;
 }
 
 .test-connections-panel__grid {
@@ -55,6 +38,92 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Flash All Nodes strip (single row: title + two label/input/set groups) ── */
+
+.flash-all-strip {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  flex-shrink: 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.flash-all-strip__title {
+  font-weight: var(--font-weight-bold) !important;
+  font-size: var(--font-size-md) !important;
+  color: var(--color-text);
+  flex-shrink: 0;
+  margin-right: var(--space-2);
+}
+
+.flash-all-strip__controls {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.flash-all-strip__field {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+  height: var(--testbench-inline-row-h);
+  min-height: var(--testbench-inline-row-h);
+}
+
+.flash-all-strip__field-label {
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.flash-all-strip__input.MuiTextField-root {
+  width: 4.25rem;
+  flex: 0 0 4.25rem;
+  display: flex;
+  align-items: stretch;
+}
+
+.flash-all-strip__input .MuiOutlinedInput-root {
+  height: 100% !important;
+  min-height: 0 !important;
+  box-sizing: border-box;
+}
+
+.flash-all-strip__input .MuiInputBase-input {
+  padding: 0 0.4rem !important;
+  font-size: var(--font-size-xs) !important;
+  text-align: right;
+  height: 100% !important;
+  box-sizing: border-box;
+  line-height: normal !important;
+}
+
+.flash-all-strip__field .node-test-card__btn--inline {
+  height: 100% !important;
+  min-height: 0 !important;
+  box-sizing: border-box;
+}
+
+/* ── Per-node card ── */
 
 .node-test-card {
   border: var(--border-default);
@@ -166,39 +235,79 @@
   color: var(--color-gray-700) !important;
 }
 
-.node-test-card__echo-row .MuiOutlinedInput-root.Mui-disabled {
-  background-color: var(--color-gray-400);
-}
-
-.node-test-card__echo-row
-  .MuiOutlinedInput-root.Mui-disabled
-  .MuiOutlinedInput-notchedOutline {
-  border-color: var(--color-gray-500);
-}
-
-.node-test-card__echo-row .MuiOutlinedInput-input.Mui-disabled {
-  color: var(--color-gray-700);
-  -webkit-text-fill-color: var(--color-gray-700);
-}
-
 .node-test-card__btn--wide {
   width: 100%;
   flex: 0 0 auto;
 }
 
-.node-test-card__echo-row {
+/* ── Per-node inline flash params: label + input (flex) + Set (one row each) ── */
+
+.node-test-card__param-row {
   display: flex;
+  flex-direction: row;
   align-items: stretch;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  min-width: 0;
+  height: var(--testbench-inline-row-h);
+  min-height: var(--testbench-inline-row-h);
 }
 
-.node-test-card__echo-row .MuiTextField-root {
+.node-test-card__param-label {
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text);
+  line-height: 1.1 !important;
+  flex: 0 0 auto;
+  min-width: 4.9rem;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.node-test-card__param-row .MuiTextField-root {
   flex: 1 1 auto;
   min-width: 0;
+  width: auto !important;
+  display: flex;
+  align-items: stretch;
 }
 
-.node-test-card__echo-row .node-test-card__btn {
-  flex: 0 0 auto;
-  min-width: 3.75rem;
-  min-height: 40px;
+.node-test-card__param-row .MuiOutlinedInput-root {
+  height: 100% !important;
+  min-height: 0 !important;
+  box-sizing: border-box;
+}
+
+.node-test-card__param-row .MuiInputBase-input {
+  padding: 0 0.45rem !important;
+  font-size: var(--font-size-sm) !important;
+  text-align: right;
+  height: 100% !important;
+  box-sizing: border-box;
+  line-height: normal !important;
+}
+
+.node-test-card__btn--inline {
+  flex: 0 0 auto !important;
+  min-width: 2.25rem !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 0.35rem !important;
+  line-height: 1 !important;
+  font-size: var(--font-size-xs) !important;
+  box-sizing: border-box;
+}
+
+.node-test-card__param-row .MuiOutlinedInput-root.Mui-disabled {
+  background-color: var(--color-gray-400);
+}
+
+.node-test-card__param-row
+  .MuiOutlinedInput-root.Mui-disabled
+  .MuiOutlinedInput-notchedOutline {
+  border-color: var(--color-gray-500);
+}
+
+.node-test-card__param-row .MuiOutlinedInput-input.Mui-disabled {
+  color: var(--color-gray-700);
+  -webkit-text-fill-color: var(--color-gray-700);
 }

@@ -24,6 +24,7 @@ import {
   clearSchedulerQueue,
   enqueueUser,
   openSchedulerStream,
+  postServerLogLine,
   resetScheduler,
   sampleUserDuration,
   schedulerSnapshotToFrontendState,
@@ -114,6 +115,7 @@ export default function App() {
   const [nodeConnections, setNodeConnections] = useState(() =>
     emptyConnections()
   );
+  const [nodeFlashParams, setNodeFlashParams] = useState({});
 
   // Backend Dummy Mode state — hydrated from the scheduler SSE stream.
   // Separate from local sim state so switching modes doesn't clobber
@@ -174,7 +176,8 @@ export default function App() {
     setSimulationStatus(status);
     if (status === "running") setHasPlayedSession(true);
 
-    if (appModeRef.current === APP_MODE_DUMMY) {
+    const mode = appModeRef.current;
+    if (mode === APP_MODE_DUMMY) {
       if (status === "running") {
         await setSimRuntime("running");
       } else if (status === "paused") {
@@ -183,13 +186,24 @@ export default function App() {
       return;
     }
 
-    if (status === "running" && simNeedsPlayResetRef.current) {
-      setSimElapsedMs(0);
-      setSatisfiedUsers(0);
-      setSimExitedUsers(0);
-      setStalls((s) => s.map((x) => ({ ...x, usagePct: 0 })));
-      setUrinals((u) => u.map((x) => ({ ...x, usagePct: 0 })));
-      simNeedsPlayResetRef.current = false;
+    // SIM or TEST: same Play/Pause server log path (dummy uses backend above).
+    if (status === "running") {
+      postServerLogLine("=============== PLAY ===============");
+      if (simNeedsPlayResetRef.current) {
+        setSimElapsedMs(0);
+        setSatisfiedUsers(0);
+        setSimExitedUsers(0);
+        setStalls((s) => s.map((x) => ({ ...x, usagePct: 0 })));
+        setUrinals((u) => u.map((x) => ({ ...x, usagePct: 0 })));
+        simNeedsPlayResetRef.current = false;
+      }
+    }
+    if (status === "paused") {
+      postServerLogLine("=============== PAUSE ===============");
+      postServerLogLine(`  Elapsed: ${formatSimElapsed(simElapsedMsRef.current)}`);
+      postServerLogLine(`  Satisfied Users: ${satisfiedUsersRef.current}`);
+      postServerLogLine(`  Exited Users: ${simExitedUsersRef.current}`);
+      postServerLogLine(`  Total Users: ${simTotalArrivalsRef.current}`);
     }
     if (status === "stopped") {
       simNeedsPlayResetRef.current = true;
@@ -203,6 +217,18 @@ export default function App() {
   useEffect(() => {
     simElapsedMsRef.current = simElapsedMs;
   }, [simElapsedMs]);
+  const satisfiedUsersRef = useRef(0);
+  useEffect(() => {
+    satisfiedUsersRef.current = satisfiedUsers;
+  }, [satisfiedUsers]);
+  const simExitedUsersRef = useRef(0);
+  useEffect(() => {
+    simExitedUsersRef.current = simExitedUsers;
+  }, [simExitedUsers]);
+  const simTotalArrivalsRef = useRef(0);
+  useEffect(() => {
+    simTotalArrivalsRef.current = simTotalArrivals;
+  }, [simTotalArrivals]);
 
   useEffect(() => {
     if (appMode !== APP_MODE_SIM || simulationStatus !== "running")
@@ -252,6 +278,11 @@ export default function App() {
           }
           const at = item.enqueuedAtSimMs ?? 0;
           if (simNow - at > QUEUE_WAIT_MS) {
+            if (item.exitState !== "expiring") {
+              postServerLogLine(
+                `[SCHEDULER] user ${item.id} timed out; Removing from queue`
+              );
+            }
             next.push({
               ...item,
               exitState: "expiring",
@@ -281,6 +312,12 @@ export default function App() {
           ...prev,
           `[Node ${evt?.node_id ?? "?"}] <- ${body} - ${stamp}`,
         ]);
+      },
+      (nodeId, type, value) => {
+        setNodeFlashParams((prev) => ({
+          ...prev,
+          [nodeId]: { ...prev[nodeId], [type]: value },
+        }));
       }
     );
     return close;
@@ -368,6 +405,17 @@ export default function App() {
         applySnapshot(data);
         return;
       }
+      if (event === "server_log") {
+        const line = data?.line;
+        if (typeof line === "string") {
+          if (line === "") {
+            setLogs((prev) => [...prev, ""]);
+          } else {
+            setLogs((prev) => [...prev, line]);
+          }
+        }
+        return;
+      }
       if (event === "queue_item_exited") {
         const qid = Number(data?.queue_item_id);
         if (Number.isInteger(qid)) {
@@ -412,8 +460,6 @@ export default function App() {
         const transfer = transferFromPreviewEvent(data);
         if (!transfer) return;
         setPendingTransfers((prev) => {
-          // Deduplicate on fixture id: a new preview on the same
-          // fixture should supersede any lingering stale transfer.
           const filtered = prev.filter(
             (t) =>
               t.fixtureId !== transfer.fixtureId &&
@@ -421,14 +467,6 @@ export default function App() {
           );
           return [...filtered, transfer];
         });
-        if (appModeRef.current === APP_MODE_DUMMY) {
-          const kind = data?.fixture_kind || "fixture";
-          const u = data?.user_type || "user";
-          setLogs((prev) => [
-            ...prev,
-            `[Dummy] ${u}-er previewing -> ${kind} ${transfer.fixtureId} - ${stamp}`,
-          ]);
-        }
         return;
       }
       if (event === "assignment_preview_cancelled") {
@@ -478,16 +516,6 @@ export default function App() {
             busyUntilMs,
           },
         }));
-        if (appModeRef.current === APP_MODE_DUMMY) {
-          const kind = data?.fixture_kind || "fixture";
-          const u = data?.user_type || "user";
-          const dur = Number(data?.duration_s);
-          const durText = Number.isFinite(dur) ? ` (${dur.toFixed(1)}s)` : "";
-          setLogs((prev) => [
-            ...prev,
-            `[Dummy] ${u}-er -> ${kind} ${fid}${durText} - ${stamp}`,
-          ]);
-        }
         return;
       }
       if (event === "assignment_completed") {
@@ -512,13 +540,6 @@ export default function App() {
         });
         if (Number.isFinite(Number(data?.satisfied_users))) {
           setDummySatisfiedUsers(Number(data.satisfied_users));
-        }
-        if (appModeRef.current === APP_MODE_DUMMY) {
-          const kind = data?.fixture_kind || "fixture";
-          setLogs((prev) => [
-            ...prev,
-            `[Dummy] ${kind} ${fid} completed - ${stamp}`,
-          ]);
         }
         return;
       }
@@ -719,6 +740,9 @@ export default function App() {
       setQueue((prev) =>
         prev.map((item) => (item.id === id ? { ...item, durationS: d } : item))
       );
+      postServerLogLine(
+        `[QUEUE]: Added (user_id: ${id}, use: ${type}, duration: ${d.toFixed(1)}s)`
+      );
     });
   };
 
@@ -746,6 +770,7 @@ export default function App() {
       return;
     }
     setQueue([]);
+    postServerLogLine("[QUEUE]: Cleared Queue");
   };
 
   const handleClearLogs = () => {
@@ -789,15 +814,14 @@ export default function App() {
    * once the HTTP round-trip completes.
    */
   const handleTestSend = useCallback(async (id, payload) => {
-    const stamp = new Date().toLocaleString();
-    const payloadText = JSON.stringify(payload);
-    setLogs((prev) => [...prev, `[Node ${id}] -> ${payloadText} - ${stamp}`]);
     const result = await sendToNode(id, payload);
-    const resultStamp = new Date().toLocaleString();
-    const line = result.ok
-      ? `[Node ${id}] <- ACK - ${resultStamp}`
-      : `[Node ${id}] <- ERR ${result.error || "unknown"} - ${resultStamp}`;
-    setLogs((prev) => [...prev, line]);
+    if (!result.ok) {
+      const stamp = new Date().toLocaleString();
+      setLogs((prev) => [
+        ...prev,
+        `[Node ${id}] <- ERR ${result.error || "unknown"} - ${stamp}`,
+      ]);
+    }
   }, []);
 
   const handleNodeConnect = useCallback(async (id) => {
@@ -966,6 +990,7 @@ export default function App() {
           ) : (
             <TestConnectionsPanel
               nodeConnections={nodeConnections}
+              nodeFlashParams={nodeFlashParams}
               onSend={handleTestSend}
               onConnect={handleNodeConnect}
               onDisconnect={handleNodeDisconnect}

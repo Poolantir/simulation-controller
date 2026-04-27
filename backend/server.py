@@ -23,9 +23,13 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from ble_manager import BleManager  # noqa: E402
 from scheduler import (  # noqa: E402
     API_SIM_USER_RUNTIMES,
+    MODE_SIM,
+    MODE_TEST,
+    MODE_DUMMY,
     Scheduler,
     VALID_MODES,
 )
+import server_log  # noqa: E402
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -41,6 +45,41 @@ ble.start()
 
 scheduler = Scheduler()
 scheduler.start()
+
+
+def _normalize_get_response(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerce GET / SERVO_RAMP|IN_RANGE RX so `action` is always a number for clients.
+
+    ESP32 may send (COMMANDS.md):
+      {"command":"GET","id":"","type":"SERVO_RAMP","action":{"SERVO_RAMP": 2000}}
+      {"command":"GET","id":"","type":"IN_RANGE","action":{"IN_RANGE": 60}}
+    or a bare numeric `action` (legacy).
+    """
+    if str(payload.get("command", "")).upper() != "GET":
+        return payload
+    typ = str(payload.get("type", "")).upper()
+    if typ not in ("SERVO_RAMP", "IN_RANGE"):
+        return payload
+    action = payload.get("action")
+    if isinstance(action, (int, float)) and not isinstance(action, bool):
+        return payload
+    if not isinstance(action, dict):
+        return payload
+    key = "SERVO_RAMP" if typ == "SERVO_RAMP" else "IN_RANGE"
+    val: Any = action.get(key)
+    if val is None:
+        for v in action.values():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                val = v
+                break
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        out = dict(payload)
+        if isinstance(val, float) and not val.is_integer():
+            out["action"] = val
+        else:
+            out["action"] = int(val)
+        return out
+    return payload
 
 
 @app.route("/health")
@@ -60,6 +99,7 @@ def nodes_stream() -> Response:
     Emits two event types:
       - `status`: full connection snapshot whenever it changes.
       - `inbound`: `{node_id, payload, raw}` for each BLE notification.
+        GET (SERVO_RAMP / IN_RANGE) responses are normalized so `action` is numeric.
     """
 
     client_q: "queue.Queue[tuple[str, Any]]" = queue.Queue(maxsize=128)
@@ -71,6 +111,8 @@ def nodes_stream() -> Response:
             pass
 
     def on_inbound(node_id: int, payload: Any, raw: str) -> None:
+        if isinstance(payload, dict):
+            payload = _normalize_get_response(payload)
         evt = {"node_id": node_id, "payload": payload, "raw": raw}
         try:
             client_q.put_nowait(("inbound", evt))
@@ -110,6 +152,15 @@ def nodes_send(node_id: int) -> Any:
     if not isinstance(payload, dict):
         return jsonify(ok=False, error="body must be a JSON object"), 400
     result = ble.send(node_id, payload)
+    if result.get("ok"):
+        compact = json.dumps(payload, separators=(",", ":"))
+        uid = payload.get("id")
+        if uid is not None:
+            server_log.publish_line(
+                f"[SERVER -> Node {node_id}] (user_id={uid}): {compact}"
+            )
+        else:
+            server_log.publish_line(f"[SERVER -> Node {node_id}]: {compact}")
     status = 200 if result.get("ok") else 502
     return jsonify(result), status
 
@@ -117,6 +168,10 @@ def nodes_send(node_id: int) -> Any:
 @app.route("/api/nodes/<int:node_id>/connect", methods=["POST"])
 def nodes_connect(node_id: int) -> Any:
     result = ble.request_connect(node_id)
+    if result.get("ok") and result.get("connected"):
+        for param_type in ("SERVO_RAMP", "IN_RANGE"):
+            get_payload = {"command": "GET", "id": "", "type": param_type, "action": ""}
+            ble.send(node_id, get_payload, timeout=3.0)
     status = 200 if result.get("ok") else 502
     return jsonify(result), status
 
@@ -165,6 +220,9 @@ def scheduler_mode() -> Any:
             400,
         )
     result = scheduler.set_mode(mode)
+    if result.get("ok"):
+        label = "SIMULATION" if mode == MODE_SIM else "TESTING"
+        server_log.publish_line(f"=============== SET: {label} ===============")
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 
@@ -190,6 +248,14 @@ def scheduler_enqueue() -> Any:
     payload = request.get_json(silent=True) or {}
     user_type = str(payload.get("type", "")).lower()
     result = scheduler.enqueue(user_type)
+    if result.get("ok"):
+        item = result.get("item", {})
+        dur = item.get("duration_s")
+        dur_text = f"{dur:.1f}s" if dur is not None else "?"
+        uid = item.get("id", "?")
+        server_log.publish_line(
+            f'[QUEUE]: Added (user_id: {uid}, use: {item.get("type", user_type)}, duration: {dur_text})'
+        )
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 
@@ -211,7 +277,10 @@ def scheduler_sample_duration() -> Any:
 
 @app.route("/api/scheduler/queue/clear", methods=["POST"])
 def scheduler_queue_clear() -> Any:
-    return jsonify(scheduler.clear_queue())
+    result = scheduler.clear_queue()
+    if result.get("ok"):
+        server_log.publish_line("[QUEUE]: Cleared Queue")
+    return jsonify(result)
 
 
 @app.route("/api/scheduler/reset", methods=["POST"])
@@ -219,9 +288,20 @@ def scheduler_reset() -> Any:
     return jsonify(scheduler.reset())
 
 
+@app.route("/api/server-log", methods=["POST"])
+def server_log_post() -> Any:
+    """Accept a client-originated log line (SIM queue actions)."""
+    payload = request.get_json(silent=True) or {}
+    line = payload.get("line")
+    if not isinstance(line, str) or not line or len(line) > 500:
+        return jsonify(ok=False, error="line must be a non-empty string (max 500)"), 400
+    server_log.publish_line(line)
+    return jsonify(ok=True)
+
+
 @app.route("/api/scheduler/stream")
 def scheduler_stream() -> Response:
-    """SSE stream of scheduler events.
+    """SSE stream of scheduler events + server_log lines.
 
     Emits `scheduler_state` as a full snapshot on connect, followed by
     per-event frames as state changes:
@@ -232,6 +312,7 @@ def scheduler_stream() -> Response:
       - `mode_changed`     — SIM/TEST/DUMMY switch
       - `config_updated`   — preset/percentages/cleanliness changed
       - `reset`            — full reset
+      - `server_log`       — spec-formatted log line (LOGGING.md)
     """
 
     client_q: "queue.Queue[tuple[str, Any]]" = queue.Queue(maxsize=256)
@@ -240,19 +321,26 @@ def scheduler_stream() -> Response:
         try:
             client_q.put_nowait((event, data))
         except queue.Full:
-            # Drop oldest to keep the stream responsive rather than
-            # stalling the scheduler thread.
             try:
                 client_q.get_nowait()
                 client_q.put_nowait((event, data))
             except queue.Empty:
                 pass
 
-    unsub = scheduler.subscribe(on_event)
+    def on_log_line(line: str) -> None:
+        try:
+            client_q.put_nowait(("server_log", {"line": line}))
+        except queue.Full:
+            pass
+
+    unsub_sched = scheduler.subscribe(on_event)
+    unsub_log = server_log.subscribe(on_log_line)
 
     def gen():
         try:
             yield _sse("scheduler_state", scheduler.snapshot())
+            for line in server_log.replay():
+                yield _sse("server_log", {"line": line})
             while True:
                 try:
                     event, data = client_q.get(timeout=15.0)
@@ -260,7 +348,8 @@ def scheduler_stream() -> Response:
                 except queue.Empty:
                     yield ": keepalive\n\n"
         finally:
-            unsub()
+            unsub_sched()
+            unsub_log()
 
     return Response(
         gen(),

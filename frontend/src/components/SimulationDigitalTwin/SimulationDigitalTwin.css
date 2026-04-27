@@ -17,7 +17,8 @@
    * (which uses padding instead of margin) so the two panes share
    * the same vertical footprint.
    */
-  margin: var(--space-5);
+  /* left margin 0: gutter = sidebar padding-right only (= --space-5, same as gap between sidebar cards) */
+  margin: var(--space-5) var(--space-5) var(--space-5) 0;
   padding: var(--space-6);
   gap: var(--space-8);
   box-sizing: border-box;

@@ -39,6 +39,7 @@ from behavioral_model import (
     pick_sequential,
     pick_weighted,
 )
+import server_log
 
 log = logging.getLogger("scheduler")
 
@@ -309,9 +310,15 @@ class Scheduler:
         middle_toilet_first_choice_pct: Optional[float] = None,
         restroom_conditions: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        config_diffs: List[str] = []
         with self._lock:
             if restroom_preset is not None:
+                old = self._config.restroom_preset
                 self._config.restroom_preset = str(restroom_preset)
+                if str(restroom_preset) != old:
+                    config_diffs.append(
+                        f"[CONFIGURATION]: Restroom changed; {old} -> {restroom_preset}"
+                    )
             types_changed = False
             if toilet_types is not None:
                 normalised = _normalise_toilet_types(toilet_types)
@@ -320,11 +327,21 @@ class Scheduler:
                     self._init_fixtures_from_types(normalised)
                     types_changed = True
             if shy_peer_pct is not None:
+                old = self._config.shy_peer_pct
                 self._config.shy_peer_pct = float(shy_peer_pct)
+                if float(shy_peer_pct) != old:
+                    config_diffs.append(
+                        f"[CONFIGURATION]: Shy Pee-er Population changed; {old:.0f}% -> {float(shy_peer_pct):.0f}%"
+                    )
             if middle_toilet_first_choice_pct is not None:
+                old = self._config.middle_toilet_first_choice_pct
                 self._config.middle_toilet_first_choice_pct = float(
                     middle_toilet_first_choice_pct
                 )
+                if float(middle_toilet_first_choice_pct) != old:
+                    config_diffs.append(
+                        f"[CONFIGURATION]: Middle Toilet as First Choice changed; {old:.0f}% -> {float(middle_toilet_first_choice_pct):.0f}%"
+                    )
             if restroom_conditions is not None:
                 cond_map = conditions_from_frontend_payload(
                     self._config.toilet_types, restroom_conditions
@@ -333,15 +350,19 @@ class Scheduler:
                     f = self._fixtures.get(idx + 1)
                     if f is None:
                         continue
+                    old_cond = f.condition
                     f.condition = cond
-                    # Non-existent fixtures can never be in-use.
+                    if cond != old_cond:
+                        kind = f.kind.capitalize() if f.kind != "nonexistent" else "Fixture"
+                        config_diffs.append(
+                            f"[CONFIGURATION]: {kind} {f.id} condition changed; {old_cond} -> {cond}"
+                        )
                     if f.kind == "nonexistent":
                         f.in_use = False
                         f.busy_until = None
                         f.current_user_type = None
                         f.current_queue_item_id = None
                         f.current_duration_s = None
-            # If the layout changed, any stale in-use state is meaningless.
             if types_changed:
                 for f in self._fixtures.values():
                     if f.kind == "nonexistent":
@@ -350,14 +371,13 @@ class Scheduler:
                         f.current_user_type = None
                         f.current_queue_item_id = None
                         f.current_duration_s = None
-            # Reservations on fixtures that just became non-existent or
-            # out-of-order must be cancelled so the UI stops animating
-            # toward a fixture that isn't valid any more.
             cancelled = self._cancel_reservations_locked(
                 predicate=lambda f: (
                     f.kind == "nonexistent" or f.condition == "Out-of-Order"
                 )
             )
+        for line in config_diffs:
+            server_log.publish_line(line)
         for ev in cancelled:
             self._emit("assignment_preview_cancelled", ev)
         self._emit("config_updated", self._config.to_dict())
@@ -437,6 +457,7 @@ class Scheduler:
             self._last_tick_wall = None
             self._runtime = RUNTIME_PAUSED
             self._started_at = None
+        server_log.publish_line("=============== RESET ===============")
         self._emit("reset", {})
         self._emit_state()
         return {"ok": True}
@@ -493,6 +514,10 @@ class Scheduler:
                 self._last_tick_wall = now
         for c in cancelled:
             self._emit("assignment_preview_cancelled", c)
+        if r == RUNTIME_RUNNING:
+            server_log.publish_line("=============== PLAY ===============")
+        elif r == RUNTIME_PAUSED:
+            self._publish_pause_summary()
         self._emit("sim_runtime_changed", {"runtime": r})
         self._emit_state()
         return {"ok": True, "runtime": r}
@@ -825,6 +850,11 @@ class Scheduler:
                     }
                 )
         for ev in commit_events:
+            qid = ev.get("queue_item_id", "?")
+            fid = ev.get("fixture_id", "?")
+            server_log.publish_line(
+                f"[SCHEDULER] sending user {qid} to toilet {fid}"
+            )
             self._emit("assignment_started", ev)
         if queue_changed:
             self._emit(
@@ -845,6 +875,7 @@ class Scheduler:
                     and fixture.busy_until <= now
                 ):
                     user_type = fixture.current_user_type
+                    q_done = fixture.current_queue_item_id
                     fixture.in_use = False
                     fixture.busy_until = None
                     fixture.current_user_type = None
@@ -857,10 +888,18 @@ class Scheduler:
                             "fixture_id": fixture.id,
                             "fixture_kind": fixture.kind,
                             "user_type": user_type,
+                            "queue_item_id": q_done,
                             "satisfied_users": self._satisfied_users,
                         }
                     )
         for ev in released:
+            qid = ev.get("queue_item_id")
+            if qid is None:
+                qid = "?"
+            fid = ev.get("fixture_id", "?")
+            server_log.publish_line(
+                f"[SCHEDULER] user {qid} complete! Freeing toilet {fid}"
+            )
             self._emit("assignment_completed", ev)
         if released:
             self._emit_state()
@@ -890,6 +929,11 @@ class Scheduler:
             if len(kept) != len(self._queue):
                 self._queue[:] = kept
         for ev in removed:
+            qid = ev.get("queue_item_id")
+            if qid is not None:
+                server_log.publish_line(
+                    f"[SCHEDULER] user {qid} timed out; Removing from queue"
+                )
             self._emit("queue_item_exited", ev)
         if removed:
             self._emit(
@@ -897,6 +941,32 @@ class Scheduler:
                 {"queue": [q.to_dict() for q in self._queue_copy()]},
             )
             self._emit_state()
+
+    def _publish_pause_summary(self) -> None:
+        """Emit a PAUSE banner followed by stats and per-fixture breakdown."""
+        with self._lock:
+            sim_s = self._sim_time_s
+            satisfied = self._satisfied_users
+            exited = self._exited_users
+            total = self._total_arrivals
+            fixtures = [
+                (f.id, f.kind, f.use_count) for f in self._fixtures.values()
+                if f.kind != "nonexistent"
+            ]
+        m = int(sim_s) // 60
+        s = int(sim_s) % 60
+        elapsed = f"{m}m {s}s" if m else f"{s}s"
+        total_uses = sum(uc for _, _, uc in fixtures)
+        server_log.publish_line("=============== PAUSE ===============")
+        server_log.publish_line(f"  Elapsed: {elapsed}")
+        server_log.publish_line(f"  Satisfied Users: {satisfied}")
+        server_log.publish_line(f"  Exited Users: {exited}")
+        server_log.publish_line(f"  Total Users: {total}")
+        for fid, kind, uc in fixtures:
+            pct = f"{uc / total_uses * 100:.0f}%" if total_uses > 0 else "0%"
+            server_log.publish_line(
+                f"  {kind.capitalize()} {fid}: {uc} uses ({pct})"
+            )
 
     def _emit_state(self) -> None:
         self._emit("scheduler_state", self.snapshot())

@@ -42,15 +42,33 @@ export function snapshotToConnections(snapshot) {
 }
 
 /**
+ * GET / SERVO_RAMP | IN_RANGE from ESP32: `action` may be a number (legacy) or
+ * `{ SERVO_RAMP: n }` / `{ IN_RANGE: n }` per COMMANDS.md.
+ */
+function coalesceGetFlashAction(type, action) {
+  if (typeof action === "number" && Number.isFinite(action)) return action;
+  if (action && typeof action === "object" && !Array.isArray(action)) {
+    const key = type === "SERVO_RAMP" ? "SERVO_RAMP" : "IN_RANGE";
+    const v = action[key];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    for (const x of Object.values(action)) {
+      if (typeof x === "number" && Number.isFinite(x)) return x;
+    }
+  }
+  return null;
+}
+
+/**
  * Subscribe to /api/nodes/stream. Returns a close() function.
  *
  * Handlers:
  *   onConnections(boolArray)       — initial snapshot + each status change
  *   onInbound({node_id, payload, raw})  — each ESP32 -> server notification
+ *   onFlashParams(nodeId, type, value)  — GET response with flash param
  *
  * Reconnects after 2s if the stream errors before `close()` is called.
  */
-export function openNodeStatusStream(onConnections, onInbound) {
+export function openNodeStatusStream(onConnections, onInbound, onFlashParams) {
   let es = null;
   let closed = false;
   let retryTimer = null;
@@ -71,6 +89,17 @@ export function openNodeStatusStream(onConnections, onInbound) {
         try {
           const evt = JSON.parse(ev.data);
           onInbound(evt);
+          if (
+            typeof onFlashParams === "function" &&
+            evt?.payload?.command === "GET" &&
+            typeof evt?.node_id === "number"
+          ) {
+            const { type, action } = evt.payload;
+            if (type === "SERVO_RAMP" || type === "IN_RANGE") {
+              const n = coalesceGetFlashAction(type, action);
+              if (n != null) onFlashParams(evt.node_id, type, n);
+            }
+          }
         } catch {
           /* ignore malformed frames */
         }
