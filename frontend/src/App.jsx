@@ -177,7 +177,7 @@ export default function App() {
     if (status === "running") setHasPlayedSession(true);
 
     const mode = appModeRef.current;
-    if (mode === APP_MODE_DUMMY) {
+    if (mode === APP_MODE_DUMMY || mode === APP_MODE_SIM) {
       if (status === "running") {
         await setSimRuntime("running");
       } else if (status === "paused") {
@@ -186,25 +186,6 @@ export default function App() {
       return;
     }
 
-    // SIM or TEST: same Play/Pause server log path (dummy uses backend above).
-    if (status === "running") {
-      postServerLogLine("=============== PLAY ===============");
-      if (simNeedsPlayResetRef.current) {
-        setSimElapsedMs(0);
-        setSatisfiedUsers(0);
-        setSimExitedUsers(0);
-        setStalls((s) => s.map((x) => ({ ...x, usagePct: 0 })));
-        setUrinals((u) => u.map((x) => ({ ...x, usagePct: 0 })));
-        simNeedsPlayResetRef.current = false;
-      }
-    }
-    if (status === "paused") {
-      postServerLogLine("=============== PAUSE ===============");
-      postServerLogLine(`  Elapsed: ${formatSimElapsed(simElapsedMsRef.current)}`);
-      postServerLogLine(`  Satisfied Users: ${satisfiedUsersRef.current}`);
-      postServerLogLine(`  Exited Users: ${simExitedUsersRef.current}`);
-      postServerLogLine(`  Total Users: ${simTotalArrivalsRef.current}`);
-    }
     if (status === "stopped") {
       simNeedsPlayResetRef.current = true;
       setQueue([]);
@@ -497,7 +478,8 @@ export default function App() {
         );
         const qid = Number(data?.queue_item_id);
         const dur = Number(data?.duration_s);
-        const busyUntilServer = Number(data?.busy_until);
+        const busyUntilRaw = data?.busy_until;
+        const busyUntilServer = busyUntilRaw != null ? Number(busyUntilRaw) : NaN;
         // `busy_until` is server wall-clock seconds. Convert to client
         // `Date.now()` ms, falling back to "now + duration" if the
         // event omitted either field so the countdown still runs.
@@ -748,7 +730,7 @@ export default function App() {
 
   const handleAddPee = () => {
     if (!canMutateActiveQueue()) return;
-    if (appModeRef.current === APP_MODE_DUMMY) {
+    if (appModeRef.current === APP_MODE_DUMMY || appModeRef.current === APP_MODE_SIM) {
       enqueueUser("pee");
       return;
     }
@@ -757,7 +739,7 @@ export default function App() {
 
   const handleAddPoo = () => {
     if (!canMutateActiveQueue()) return;
-    if (appModeRef.current === APP_MODE_DUMMY) {
+    if (appModeRef.current === APP_MODE_DUMMY || appModeRef.current === APP_MODE_SIM) {
       enqueueUser("poo");
       return;
     }
@@ -765,7 +747,7 @@ export default function App() {
   };
 
   const handleClearQueue = () => {
-    if (appModeRef.current === APP_MODE_DUMMY) {
+    if (appModeRef.current === APP_MODE_DUMMY || appModeRef.current === APP_MODE_SIM) {
       clearSchedulerQueue();
       return;
     }
@@ -868,14 +850,12 @@ export default function App() {
     // Flip backend scheduler mode first so the subsequent runtime POST
     // (only valid in DUMMY) is accepted.
     await setSchedulerMode(next);
-    if (next === APP_MODE_DUMMY) {
-      // Force backend runtime to match the UI's current intent so a
-      // stale runtime from a prior Dummy session can't silently keep
-      // ticking behind a "paused" button.
+    if (next === APP_MODE_DUMMY || next === APP_MODE_SIM) {
       const desired =
         simulationStatusRef.current === "running" ? "running" : "paused";
       setSimRuntime(desired);
-    } else {
+    }
+    if (next === APP_MODE_TEST) {
       const payload = { command: "MODE", type: "SET", action: next };
       for (let i = 0; i < NODE_COUNT; i += 1) {
         if (!nodeConnections[i]) continue;
@@ -889,8 +869,9 @@ export default function App() {
   };
 
   const isDummy = appMode === APP_MODE_DUMMY;
+  const usesScheduler = appMode === APP_MODE_SIM || appMode === APP_MODE_DUMMY;
   const viewQueue = useMemo(() => {
-    if (appMode !== APP_MODE_DUMMY) return queue;
+    if (!usesScheduler) return queue;
     const base = dummyQueue;
     const baseIds = new Set(base.map((x) => x.id));
     const t = Date.now();
@@ -904,15 +885,15 @@ export default function App() {
         exitState: "expiring",
       }));
     return [...base, ...extras];
-  }, [appMode, queue, dummyQueue, exitingQueueFlashes]);
-  const viewStalls = isDummy ? dummyStalls : stalls;
-  const viewUrinals = isDummy ? dummyUrinals : urinals;
-  const viewSatisfiedUsers = isDummy ? dummySatisfiedUsers : satisfiedUsers;
-  const viewExitedUsers = isDummy ? dummyExitedUsers : simExitedUsers;
-  const viewTotalArrivals = isDummy ? dummyTotalArrivals : simTotalArrivals;
-  const simNowMs = isDummy ? dummySimTimeMs : simElapsedMs;
+  }, [usesScheduler, queue, dummyQueue, exitingQueueFlashes]);
+  const viewStalls = usesScheduler ? dummyStalls : stalls;
+  const viewUrinals = usesScheduler ? dummyUrinals : urinals;
+  const viewSatisfiedUsers = usesScheduler ? dummySatisfiedUsers : satisfiedUsers;
+  const viewExitedUsers = usesScheduler ? dummyExitedUsers : simExitedUsers;
+  const viewTotalArrivals = usesScheduler ? dummyTotalArrivals : simTotalArrivals;
+  const simNowMs = usesScheduler ? dummySimTimeMs : simElapsedMs;
   const elapsedTimeText = formatSimElapsed(
-    isDummy ? dummySimTimeMs : simElapsedMs
+    usesScheduler ? dummySimTimeMs : simElapsedMs
   );
   // In Dummy Mode the digital twin is a pure simulation; the BLE node
   // connection state is irrelevant so we hide the "Node Disconnected"
@@ -975,8 +956,8 @@ export default function App() {
               stalls={viewStalls}
               urinals={viewUrinals}
               nodeConnections={viewNodeConnections}
-              pendingTransfers={isDummy ? pendingTransfers : []}
-              activeFixtureUsers={isDummy ? activeFixtureUsers : {}}
+              pendingTransfers={usesScheduler ? pendingTransfers : []}
+              activeFixtureUsers={usesScheduler ? activeFixtureUsers : {}}
               simNowMs={simNowMs}
               canAddQueueUsers={
                 simulationStatus === "running" ||

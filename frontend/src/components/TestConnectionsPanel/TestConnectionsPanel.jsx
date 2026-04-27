@@ -6,8 +6,6 @@ const NODE_COUNT = 6;
 const LED_ACTIONS = ["R", "G", "B"];
 const SERVO_ACTIONS = ["MAX", "REST"];
 
-const FLASH_SERVO_RAMP_MIN = 200;
-const FLASH_SERVO_RAMP_MAX = 10000;
 const FLASH_IN_RANGE_MIN = 20;
 const FLASH_IN_RANGE_MAX = 2000;
 
@@ -30,10 +28,6 @@ function buildFlashInRangeMm(mm) {
   return { command: "FLASH", id: "", type: "IN_RANGE", action: mm };
 }
 
-function buildFlashServoRampMs(ms) {
-  return { command: "FLASH", id: "", type: "SERVO_RAMP", action: ms };
-}
-
 /* ── helpers ── */
 
 function randInt(min, max) {
@@ -51,7 +45,6 @@ function clamp(val, lo, hi) {
 /* ── Flash All Nodes strip (above the grid) ── */
 
 function FlashAllStrip({ nodeConnections, onSend }) {
-  const [servoRamp, setServoRamp] = useState("");
   const [inRange, setInRange] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -69,16 +62,6 @@ function FlashAllStrip({ nodeConnections, onSend }) {
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleServoRamp = () => {
-    const val = clamp(
-      Number(servoRamp),
-      FLASH_SERVO_RAMP_MIN,
-      FLASH_SERVO_RAMP_MAX
-    );
-    setServoRamp(String(val));
-    return sendToAllConnected(() => buildFlashServoRampMs(val));
   };
 
   const handleInRange = () => {
@@ -116,29 +99,6 @@ function FlashAllStrip({ nodeConnections, onSend }) {
             Set
           </Button>
         </Box>
-        <Box className="flash-all-strip__field">
-          <Typography className="flash-all-strip__field-label" component="span">
-            SERVO_RAMP
-          </Typography>
-          <TextField
-            size="small"
-            type="number"
-            value={servoRamp}
-            onChange={(e) => setServoRamp(e.target.value)}
-            inputProps={{ min: FLASH_SERVO_RAMP_MIN, max: FLASH_SERVO_RAMP_MAX }}
-            disabled={busy}
-            className="flash-all-strip__input"
-          />
-          <Button
-            size="small"
-            variant="outlined"
-            className="node-test-card__btn node-test-card__btn--primary node-test-card__btn--inline"
-            disabled={busy || !hasAnyConnected || !servoRamp}
-            onClick={handleServoRamp}
-          >
-            Set
-          </Button>
-        </Box>
       </Box>
     </Box>
   );
@@ -149,7 +109,6 @@ function FlashAllStrip({ nodeConnections, onSend }) {
 function NodeCard({ id, connected, flashParams, onSend, onConnect, onDisconnect }) {
   const [busy, setBusy] = useState(false);
   const [inRange, setInRange] = useState("");
-  const [servoRamp, setServoRamp] = useState("");
   const disabled = !connected;
 
   useEffect(() => {
@@ -157,12 +116,6 @@ function NodeCard({ id, connected, flashParams, onSend, onConnect, onDisconnect 
       setInRange(String(flashParams.IN_RANGE));
     }
   }, [flashParams?.IN_RANGE]);
-
-  useEffect(() => {
-    if (flashParams?.SERVO_RAMP != null) {
-      setServoRamp(String(flashParams.SERVO_RAMP));
-    }
-  }, [flashParams?.SERVO_RAMP]);
 
   const handleConnect = async () => {
     if (busy) return;
@@ -200,16 +153,6 @@ function NodeCard({ id, connected, flashParams, onSend, onConnect, onDisconnect 
     const val = clamp(Number(inRange), FLASH_IN_RANGE_MIN, FLASH_IN_RANGE_MAX);
     setInRange(String(val));
     onSend(id, buildFlashInRangeMm(val));
-  };
-
-  const handleSetServoRamp = () => {
-    const val = clamp(
-      Number(servoRamp),
-      FLASH_SERVO_RAMP_MIN,
-      FLASH_SERVO_RAMP_MAX
-    );
-    setServoRamp(String(val));
-    onSend(id, buildFlashServoRampMs(val));
   };
 
   return (
@@ -331,10 +274,10 @@ function NodeCard({ id, connected, flashParams, onSend, onConnect, onDisconnect 
         </Box>
 
         <Box className="node-test-card__section">
-          <Box className="node-test-card__param-row">
-            <Typography className="node-test-card__param-label" component="span">
-              IN_RANGE_MM
-            </Typography>
+          <Typography className="node-test-card__label" component="div">
+            IN_RANGE_MM
+          </Typography>
+          <Box className="node-test-card__row-btns">
             <TextField
               size="small"
               type="number"
@@ -351,39 +294,9 @@ function NodeCard({ id, connected, flashParams, onSend, onConnect, onDisconnect 
               type="button"
               size="small"
               variant="outlined"
-              className="node-test-card__btn node-test-card__btn--primary node-test-card__btn--inline"
+              className="node-test-card__btn node-test-card__btn--primary"
               disabled={disabled || !inRange}
               onClick={handleSetInRange}
-            >
-              Set
-            </Button>
-          </Box>
-        </Box>
-
-        <Box className="node-test-card__section">
-          <Box className="node-test-card__param-row">
-            <Typography className="node-test-card__param-label" component="span">
-              SERVO_RAMP
-            </Typography>
-            <TextField
-              size="small"
-              type="number"
-              value={servoRamp}
-              disabled={disabled}
-              onChange={(e) => setServoRamp(e.target.value)}
-              inputProps={{
-                min: FLASH_SERVO_RAMP_MIN,
-                max: FLASH_SERVO_RAMP_MAX,
-                "aria-label": `Node ${id} SERVO_RAMP`,
-              }}
-            />
-            <Button
-              type="button"
-              size="small"
-              variant="outlined"
-              className="node-test-card__btn node-test-card__btn--primary node-test-card__btn--inline"
-              disabled={disabled || !servoRamp}
-              onClick={handleSetServoRamp}
             >
               Set
             </Button>

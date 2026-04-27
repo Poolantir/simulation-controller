@@ -189,9 +189,16 @@ SchedulerEventCb = Callable[[str, Dict[str, Any]], None]
 class Scheduler:
     """Thread-safe dummy scheduler."""
 
-    def __init__(self, *, rng: Optional[random.Random] = None) -> None:
+    def __init__(
+        self,
+        *,
+        rng: Optional[random.Random] = None,
+        send_to_node: Optional[Callable[[int, Dict[str, Any]], Dict[str, Any]]] = None,
+    ) -> None:
         self._lock = threading.RLock()
         self._rng = rng or random.Random()
+        self._send_to_node = send_to_node
+        self._node_connections: List[bool] = [False] * FIXTURE_COUNT
         self._config = SchedulerConfig()
         self._fixtures: Dict[int, Fixture] = {}
         self._init_fixtures_from_types(self._config.toilet_types)
@@ -261,6 +268,12 @@ class Scheduler:
             except Exception:
                 log.exception("scheduler subscriber raised")
 
+    def set_node_connections(self, connections: Sequence[bool]) -> None:
+        """Update which BLE nodes are currently connected (0-indexed)."""
+        with self._lock:
+            for i in range(FIXTURE_COUNT):
+                self._node_connections[i] = bool(connections[i]) if i < len(connections) else False
+
     # ---- public API --------------------------------------------------
 
     def snapshot(self) -> Dict[str, Any]:
@@ -285,18 +298,28 @@ class Scheduler:
         if mode not in VALID_MODES:
             return {"ok": False, "error": f"invalid mode {mode!r}"}
         cancelled: List[Dict[str, Any]] = []
+        sim_mode_nodes: List[int] = []
         with self._lock:
             if mode == self._mode:
                 return {"ok": True, "mode": self._mode}
             self._mode = mode
-            # When leaving Dummy mid-run the in-flight work is meaningless,
-            # so wipe transient state. The user's Sim/Test config is kept.
-            if mode != MODE_DUMMY and clear_queue_on_switch:
+            if clear_queue_on_switch:
                 cancelled = self._cancel_reservations_locked()
                 self._queue.clear()
                 self._clear_fixtures_locked()
+            if mode == MODE_SIM:
+                for i in range(FIXTURE_COUNT):
+                    if self._node_connections[i]:
+                        sim_mode_nodes.append(i + 1)
         for ev in cancelled:
             self._emit("assignment_preview_cancelled", ev)
+        if sim_mode_nodes and self._send_to_node:
+            payload = {"command": "MODE", "type": "SET", "action": "SIM"}
+            for node_id in sim_mode_nodes:
+                try:
+                    self._send_to_node(node_id, payload)
+                except Exception:
+                    log.exception("MODE SET SIM to node %d failed", node_id)
         self._emit("mode_changed", {"mode": mode})
         self._emit_state()
         return {"ok": True, "mode": mode}
@@ -412,7 +435,7 @@ class Scheduler:
             )
             self._next_queue_id += 1
             self._queue.append(item)
-            if self._mode == MODE_DUMMY:
+            if self._mode in (MODE_DUMMY, MODE_SIM):
                 self._total_arrivals += 1
             if self._started_at is None:
                 self._started_at = time.time()
@@ -479,9 +502,8 @@ class Scheduler:
         r = str(runtime or "").lower()
         if r not in ("running", "paused", "stopped"):
             return {"ok": False, "error": f"invalid runtime {runtime!r}"}
-        if self._mode != MODE_DUMMY:
-            if r in ("running", "paused", "stopped"):
-                return {"ok": False, "error": "sim runtime only applies in DUMMY mode"}
+        if self._mode not in (MODE_DUMMY, MODE_SIM):
+            return {"ok": False, "error": "sim runtime only applies in DUMMY or SIM mode"}
         cancelled: List[Dict[str, Any]] = []
         now = time.time()
         with self._lock:
@@ -520,6 +542,16 @@ class Scheduler:
             self._publish_pause_summary()
         self._emit("sim_runtime_changed", {"runtime": r})
         self._emit_state()
+        if self._mode == MODE_SIM and self._send_to_node:
+            control_action = "PLAY" if r == RUNTIME_RUNNING else "PAUSE" if r == RUNTIME_PAUSED else None
+            if control_action:
+                payload = {"command": "SIM", "id": "", "type": "CONTROL", "action": control_action}
+                for i in range(FIXTURE_COUNT):
+                    if self._node_connections[i]:
+                        try:
+                            self._send_to_node(i + 1, payload)
+                        except Exception:
+                            log.exception("SIM CONTROL %s to node %d failed", control_action, i + 1)
         return {"ok": True, "runtime": r}
 
     def _freeze_deadlines_for_pause_locked(self, now: float) -> None:
@@ -616,6 +648,7 @@ class Scheduler:
         """
         0-indexed list of fixtures that are existing, not-in-use, and
         not currently reserved for a queued user's preview animation.
+        In SIM mode, also requires the corresponding BLE node to be connected.
         """
         free: List[int] = []
         for i in range(FIXTURE_COUNT):
@@ -625,6 +658,8 @@ class Scheduler:
             if f.kind == "nonexistent":
                 continue
             if f.in_use or f.reserved:
+                continue
+            if self._mode == MODE_SIM and not self._node_connections[i]:
                 continue
             free.append(i)
         return free
@@ -639,13 +674,16 @@ class Scheduler:
         return self._rng.uniform(lo, hi)
 
     def _free_indices_by_kind(self, kind: str) -> List[int]:
-        """0-based indices of free, non-reserved fixtures of *kind*."""
+        """0-based indices of free, non-reserved fixtures of *kind*.
+        In SIM mode, also requires the corresponding BLE node to be connected."""
         result: List[int] = []
         for i, t in enumerate(self._config.toilet_types):
             if str(t).lower() != kind:
                 continue
             f = self._fixtures[i + 1]
             if f.kind == "nonexistent" or f.in_use or f.reserved:
+                continue
+            if self._mode == MODE_SIM and not self._node_connections[i]:
                 continue
             result.append(i)
         return result
@@ -696,7 +734,7 @@ class Scheduler:
         This replaces the old head-blocks-queue policy so pee users can
         reach urinals while poo users wait for stalls.
         """
-        if self._mode != MODE_DUMMY or self._runtime != RUNTIME_RUNNING:
+        if self._mode not in (MODE_DUMMY, MODE_SIM) or self._runtime != RUNTIME_RUNNING:
             return
 
         preview_events: List[Dict[str, Any]] = []
@@ -799,14 +837,22 @@ class Scheduler:
         from *now*, pop the queue item, and emit `assignment_started`
         (plus `queue_updated`).
 
+        In SIM mode the occupancy countdown is omitted (`busy_until`
+        stays ``None``): the real ESP32 manages the timer and reports
+        ``SIM COMPLETE`` back via BLE. A ``SIM NEW`` command is sent to
+        the node on commit.
+
         Reservations commit in chronological order (earliest
         `reserved_until` first) so `assignment_started` events preserve
         FIFO queueing even when multiple fixtures elapse in the same
         tick.
         """
         commit_events: List[Dict[str, Any]] = []
+        sim_sends: List[tuple] = []
         queue_changed = False
+        is_sim = False
         with self._lock:
+            is_sim = self._mode == MODE_SIM
             now = time.time()
             pending = [
                 f
@@ -829,7 +875,10 @@ class Scheduler:
                 fixture.reserved_duration_s = None
                 fixture.preview_started_sim_s = None
                 fixture.in_use = True
-                fixture.busy_until = now + duration
+                if is_sim:
+                    fixture.busy_until = None
+                else:
+                    fixture.busy_until = now + duration
                 fixture.current_user_type = user_type
                 fixture.current_queue_item_id = queue_item_id
                 fixture.current_duration_s = duration
@@ -849,6 +898,27 @@ class Scheduler:
                         "busy_until": fixture.busy_until,
                     }
                 )
+                if is_sim:
+                    sim_sends.append((
+                        fixture.id,
+                        {
+                            "command": "SIM",
+                            "id": str(queue_item_id),
+                            "type": "NEW",
+                            "action": {"duration_s": round(duration, 1)},
+                        },
+                    ))
+        if sim_sends and self._send_to_node:
+            for node_id, payload in sim_sends:
+                try:
+                    result = self._send_to_node(node_id, payload)
+                    if not result.get("ok"):
+                        log.warning(
+                            "SIM NEW to node %d failed: %s",
+                            node_id, result.get("error"),
+                        )
+                except Exception:
+                    log.exception("SIM NEW to node %d raised", node_id)
         for ev in commit_events:
             qid = ev.get("queue_item_id", "?")
             fid = ev.get("fixture_id", "?")
@@ -909,7 +979,7 @@ class Scheduler:
         sim seconds (excluding users currently in preview)."""
         removed: List[Dict[str, Any]] = []
         with self._lock:
-            if self._mode != MODE_DUMMY or self._runtime != RUNTIME_RUNNING:
+            if self._mode not in (MODE_DUMMY, MODE_SIM) or self._runtime != RUNTIME_RUNNING:
                 return
             reserved_ids = {
                 f.reserved_queue_item_id
@@ -941,6 +1011,47 @@ class Scheduler:
                 {"queue": [q.to_dict() for q in self._queue_copy()]},
             )
             self._emit_state()
+
+    def notify_complete(self, node_id: int, user_id: Optional[str] = None, success: bool = True) -> Dict[str, Any]:
+        """Handle an ESP32 ``SIM COMPLETE`` notification in SIM mode.
+
+        Releases the fixture corresponding to *node_id*, increments
+        satisfied/exited counters, and triggers assignment of the next
+        queued user.
+        """
+        released: Optional[Dict[str, Any]] = None
+        with self._lock:
+            if self._mode != MODE_SIM:
+                return {"ok": False, "error": "not in SIM mode"}
+            fixture = self._fixtures.get(node_id)
+            if fixture is None or not fixture.in_use:
+                return {"ok": False, "error": f"fixture {node_id} not in use"}
+            q_id = fixture.current_queue_item_id
+            user_type = fixture.current_user_type
+            fixture.in_use = False
+            fixture.busy_until = None
+            fixture.current_user_type = None
+            fixture.current_queue_item_id = None
+            fixture.current_duration_s = None
+            fixture.use_count += 1
+            if success:
+                self._satisfied_users += 1
+            else:
+                self._exited_users += 1
+            released = {
+                "fixture_id": node_id,
+                "fixture_kind": fixture.kind,
+                "user_type": user_type,
+                "queue_item_id": q_id,
+                "satisfied_users": self._satisfied_users,
+            }
+        server_log.publish_line(
+            f"[SCHEDULER] user {q_id} complete! Freeing toilet {node_id}"
+        )
+        self._emit("assignment_completed", released)
+        self._emit_state()
+        self._try_assign()
+        return {"ok": True}
 
     def _publish_pause_summary(self) -> None:
         """Emit a PAUSE banner followed by stats and per-fixture breakdown."""
@@ -983,12 +1094,12 @@ class Scheduler:
                         dt = max(0.0, min(now - self._last_tick_wall, 1.0))
                         self._last_tick_wall = now
                         if (
-                            self._mode == MODE_DUMMY
+                            self._mode in (MODE_DUMMY, MODE_SIM)
                             and self._runtime == RUNTIME_RUNNING
                             and dt > 0
                         ):
                             self._sim_time_s += dt
-                if self._mode == MODE_DUMMY and self._runtime == RUNTIME_RUNNING:
+                if self._mode in (MODE_DUMMY, MODE_SIM) and self._runtime == RUNTIME_RUNNING:
                     self._release_completed()
                     self._commit_reservations()
                     self._try_assign()

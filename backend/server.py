@@ -43,8 +43,38 @@ CORS(app)
 ble = BleManager()
 ble.start()
 
-scheduler = Scheduler()
+scheduler = Scheduler(send_to_node=ble.send)
 scheduler.start()
+
+
+def _sync_node_connections(snap: Dict[int, Dict[str, Any]]) -> None:
+    """Keep the scheduler's node-connection list in sync with BLE status."""
+    conns = [False] * 6
+    for nid, info in snap.items():
+        if isinstance(nid, int) and 1 <= nid <= 6:
+            conns[nid - 1] = bool(info.get("connected"))
+    scheduler.set_node_connections(conns)
+
+
+def _handle_sim_complete(node_id: int, payload: Any, raw: str) -> None:
+    """Forward ESP32 SIM COMPLETE notifications to the scheduler."""
+    if not isinstance(payload, dict):
+        return
+    if str(payload.get("command", "")).upper() != "SIM":
+        return
+    if str(payload.get("type", "")).upper() != "COMPLETE":
+        return
+    action = payload.get("action", {})
+    success = True
+    if isinstance(action, dict):
+        success = bool(action.get("success", True))
+    elif isinstance(action, bool):
+        success = action
+    scheduler.notify_complete(node_id, user_id=str(payload.get("id", "")), success=success)
+
+
+ble.subscribe(_sync_node_connections)
+ble.subscribe_inbound(_handle_sim_complete)
 
 
 def _normalize_get_response(payload: Dict[str, Any]) -> Dict[str, Any]:

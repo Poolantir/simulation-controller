@@ -240,52 +240,6 @@
   flex: 0 0 auto;
 }
 
-/* ── Per-node inline flash params: label + input (flex) + Set (one row each) ── */
-
-.node-test-card__param-row {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  gap: var(--space-1);
-  min-width: 0;
-  height: var(--testbench-inline-row-h);
-  min-height: var(--testbench-inline-row-h);
-}
-
-.node-test-card__param-label {
-  font-size: var(--font-size-sm) !important;
-  font-weight: var(--font-weight-medium) !important;
-  color: var(--color-text);
-  line-height: 1.1 !important;
-  flex: 0 0 auto;
-  min-width: 4.9rem;
-  white-space: nowrap;
-  align-self: center;
-}
-
-.node-test-card__param-row .MuiTextField-root {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: auto !important;
-  display: flex;
-  align-items: stretch;
-}
-
-.node-test-card__param-row .MuiOutlinedInput-root {
-  height: 100% !important;
-  min-height: 0 !important;
-  box-sizing: border-box;
-}
-
-.node-test-card__param-row .MuiInputBase-input {
-  padding: 0 0.45rem !important;
-  font-size: var(--font-size-sm) !important;
-  text-align: right;
-  height: 100% !important;
-  box-sizing: border-box;
-  line-height: normal !important;
-}
-
 .node-test-card__btn--inline {
   flex: 0 0 auto !important;
   min-width: 2.25rem !important;
@@ -297,17 +251,3 @@
   box-sizing: border-box;
 }
 
-.node-test-card__param-row .MuiOutlinedInput-root.Mui-disabled {
-  background-color: var(--color-gray-400);
-}
-
-.node-test-card__param-row
-  .MuiOutlinedInput-root.Mui-disabled
-  .MuiOutlinedInput-notchedOutline {
-  border-color: var(--color-gray-500);
-}
-
-.node-test-card__param-row .MuiOutlinedInput-input.Mui-disabled {
-  color: var(--color-gray-700);
-  -webkit-text-fill-color: var(--color-gray-700);
-}
