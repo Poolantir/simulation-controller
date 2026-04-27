@@ -128,3 +128,78 @@ paths:
       responses:
         "200":
           description: text/event-stream payload
+  /api/v1/simulation/usage:
+    post:
+      summary: Ingest simulation restroom usage events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/RestroomUsageEvent"
+                - type: object
+                  properties:
+                    source:
+                      type: string
+                      enum: [simulation, dummy]
+                    events:
+                      type: array
+                      minItems: 1
+                      items:
+                        $ref: "#/components/schemas/RestroomUsageEvent"
+      responses:
+        "201":
+          description: Usage events ingested
+        "400":
+          description: Invalid payload
+  /api/v1/simulation/dummy/generate:
+    post:
+      summary: Generate synthetic anomaly and baseline usage records
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 2000
+                  default: 25
+                restroom:
+                  type: string
+                  description: Optional restroom alias or canonical restroom id
+                seed:
+                  type: integer
+                  description: Optional deterministic random seed
+      responses:
+        "201":
+          description: Synthetic usage events generated
+        "400":
+          description: Invalid payload
+components:
+  schemas:
+    RestroomUsageEvent:
+      type: object
+      required: [restroom, node_id, toilet_type, duration_s]
+      properties:
+        restroom:
+          type: string
+          description: Alias or canonical id (seamen/seamans/maclean or canonical restroom id)
+        restroom_id:
+          type: string
+          description: Canonical restroom id alternative to restroom
+        node_id:
+          type: integer
+        toilet_type:
+          type: string
+          enum: [stall, urinal]
+        duration_s:
+          type: number
+          format: float
+        scenario:
+          type: string
+        is_anomaly:
+          type: boolean

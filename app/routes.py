@@ -4,6 +4,8 @@ from dataclasses import asdict
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
+from .dummy_generator import generate_dummy_usage_events
+from .influx_contract import normalize_usage_payload
 from .models import AssignmentStatus, iso_now
 
 api = Blueprint("api", __name__)
@@ -228,4 +230,74 @@ def stream():
     response.headers["Cache-Control"] = "no-cache"
     response.headers["X-Accel-Buffering"] = "no"
     return response
+
+
+@api.post("/api/v1/simulation/usage")
+def ingest_simulation_usage():
+    auth = _require_api_token()
+    if auth:
+        return auth
+    payload = request.get_json(force=True) or {}
+    source = str(payload.get("source", "simulation")).strip() or "simulation"
+    raw_events = payload.get("events")
+    if raw_events is None:
+        raw_events = [payload]
+    if not isinstance(raw_events, list) or not raw_events:
+        return _error("invalid_payload", "events must be a non-empty list", 400)
+
+    normalized: list[dict] = []
+    for index, event in enumerate(raw_events):
+        if not isinstance(event, dict):
+            return _error("invalid_payload", f"events[{index}] must be an object", 400)
+        try:
+            record = normalize_usage_payload(event, source=source)
+        except ValueError as exc:
+            return _error("invalid_payload", str(exc), 400)
+        usage_payload = record.as_payload()
+        current_app.extensions["persistence"].write_restroom_usage(usage_payload)
+        current_app.extensions["persistence"].write_simulation_event(
+            "USAGE_INGESTED",
+            usage_payload,
+        )
+        normalized.append(usage_payload)
+
+    return jsonify({"ingested": len(normalized), "events": normalized}), 201
+
+
+@api.post("/api/v1/simulation/dummy/generate")
+def generate_dummy_usage():
+    auth = _require_api_token()
+    if auth:
+        return auth
+    payload = request.get_json(force=True) or {}
+    try:
+        count = int(payload.get("count", 25))
+    except Exception:
+        return _error("invalid_payload", "count must be an integer", 400)
+    if count <= 0 or count > 2000:
+        return _error("invalid_payload", "count must be between 1 and 2000", 400)
+    restroom = payload.get("restroom")
+    seed = payload.get("seed")
+    if seed is not None:
+        try:
+            seed = int(seed)
+        except Exception:
+            return _error("invalid_payload", "seed must be an integer", 400)
+    raw_events = generate_dummy_usage_events(count=count, restroom_id=restroom, seed=seed)
+
+    normalized: list[dict] = []
+    for raw_event in raw_events:
+        try:
+            record = normalize_usage_payload(raw_event, source="dummy")
+        except ValueError as exc:
+            return _error("invalid_payload", str(exc), 400)
+        usage_payload = record.as_payload()
+        current_app.extensions["persistence"].write_restroom_usage(usage_payload)
+        current_app.extensions["persistence"].write_simulation_event(
+            "DUMMY_USAGE_GENERATED",
+            usage_payload,
+        )
+        normalized.append(usage_payload)
+
+    return jsonify({"generated": len(normalized), "events": normalized}), 201
 

@@ -31,6 +31,25 @@
 ## Backup and recovery
 
 - Runtime queue is in-memory by default.
-- InfluxDB stores historical assignments/incidents/events.
+- InfluxDB stores historical assignments/incidents/events plus simulation telemetry.
 - If controller restarts, re-seed nodes and demand as needed.
+
+## Influx measurements provisioned by controller
+
+Single bucket, two measurements:
+
+- `restroom_usage`
+- `simulation_events`
+
+Minimum token scope for controller:
+
+- Write access to the configured bucket
+- Read access optional (not required for controller ingestion)
+
+Rotation procedure:
+
+1. Create new bucket-scoped token in Influx.
+2. Update `INFLUXDB_TOKEN` in deployment secret/env.
+3. Restart controller deployment.
+4. Revoke old token after successful write verification.
 

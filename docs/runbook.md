@@ -36,6 +36,10 @@ python scripts/seed_demo.py
 - Verify `INFLUXDB_URL`, `INFLUXDB_TOKEN`, `INFLUXDB_ORG`, and `INFLUXDB_BUCKET`.
 - Ensure the token has write access to the bucket.
 - If these vars are unset, backend runs with no-op persistence.
+- Verify writes exist in measurements `restroom_usage` and `simulation_events`.
+- Test ingest quickly:
+  - `POST /api/v1/simulation/usage` with one sample event.
+  - `POST /api/v1/simulation/dummy/generate` with `{ "count": 5, "seed": 42 }`.
 
 ### Stream not updating frontend
 - Ensure frontend is connected to `/api/v1/stream`.
