@@ -112,16 +112,21 @@ export function computeBehavioralTree({
   const stallSum = stallWeights.reduce((a, b) => a + b, 0);
   const urinalSum = urinalWeights.reduce((a, b) => a + b, 0);
 
+  // Level-2: normalized within group so occupied (T.C=0) toilets
+  // redistribute their share to remaining available toilets.
+  const stallNorm = stallWeights.map((w) =>
+    stallSum > 0 ? w / stallSum : 0
+  );
+  const urinalNorm = urinalWeights.map((w) =>
+    urinalSum > 0 ? w / urinalSum : 0
+  );
+
   const leafPercents = new Array(toiletTypes.length).fill(0);
   stallIdx.forEach((idx, j) => {
-    leafPercents[idx] =
-      stallSum > 0 ? (groupProbStall * stallWeights[j] * 100) / stallSum : 0;
+    leafPercents[idx] = groupProbStall * stallNorm[j] * 100;
   });
   urinalIdx.forEach((idx, j) => {
-    leafPercents[idx] =
-      urinalSum > 0
-        ? (groupProbUrinal * urinalWeights[j] * 100) / urinalSum
-        : 0;
+    leafPercents[idx] = groupProbUrinal * urinalNorm[j] * 100;
   });
 
   const level1Labels = [
@@ -129,20 +134,13 @@ export function computeBehavioralTree({
     formatModelPercent(groupProbUrinal * 100),
   ];
 
-  // Level-2 = conditional *within* the group, only when that group is reached (level-1 > 0).
-  const level2StallLabels = stallWeights.map((w) =>
-    formatModelPercent(
-      groupProbStall > 0 && stallSum > 0 ? (w / stallSum) * 100 : 0
-    )
+  const level2StallLabels = stallNorm.map((v) =>
+    formatModelPercent(v * 100)
   );
-  const level2UrinalLabels = urinalWeights.map((w) =>
-    formatModelPercent(
-      groupProbUrinal > 0 && urinalSum > 0 ? (w / urinalSum) * 100 : 0
-    )
+  const level2UrinalLabels = urinalNorm.map((v) =>
+    formatModelPercent(v * 100)
   );
-  // showToiletClassification is retained on the signature for API
-  // compatibility but no longer affects labels: T.C is baked into every
-  // numeric edge value.
+
   void showToiletClassification;
 
   return {

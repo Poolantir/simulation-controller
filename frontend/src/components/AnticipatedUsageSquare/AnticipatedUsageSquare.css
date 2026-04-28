@@ -1,0 +1,28 @@
+@import "../../styles.css";
+
+.anticipated-square {
+  width: 3.75rem;
+  min-width: 3.75rem;
+  max-width: 3.75rem;
+  height: 3.75rem;
+  min-height: 3.75rem;
+  max-height: 3.75rem;
+  aspect-ratio: 1;
+  background-color: var(--color-gray-100);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.25rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.anticipated-square-text {
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-bold) !important;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}

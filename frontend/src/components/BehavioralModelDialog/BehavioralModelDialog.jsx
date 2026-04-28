@@ -1,15 +1,13 @@
+import { useMemo, useState } from "react";
 import {
   Box,
   Dialog,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  MenuItem,
+  Select,
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -17,42 +15,25 @@ import BehavioralModel from "../BehavioralModel/BehavioralModel";
 import { toiletTypesForPreset } from "../../lib/restroomPresets";
 import "./BehavioralModelDialog.css";
 
-const POSITION_3 = ["Left", "Middle", "Right"];
-const POSITION_2 = ["Left", "Right"];
-
 function toiletTypeLabel(toiletTypes, globalIdx) {
   const type = String(toiletTypes[globalIdx] ?? "").toLowerCase();
-  if (type === "nonexistent") return "Non-Existent";
-  if (type !== "stall" && type !== "urinal") return "—";
-  const siblings = toiletTypes
-    .map((t, i) => (String(t).toLowerCase() === type ? i : -1))
-    .filter((i) => i >= 0);
-  const posInGroup = siblings.indexOf(globalIdx);
-  const head = type === "stall" ? "Stall" : "Urinal";
-  if (siblings.length === 3) return `${head} ${POSITION_3[posInGroup]}`;
-  if (siblings.length === 2) return `${head} ${POSITION_2[posInGroup]}`;
-  if (siblings.length === 1) return `${head} Only`;
-  return `${head} ${posInGroup + 1}`;
+  if (type === "nonexistent") return null;
+  return type === "stall" ? "Stall" : "Urinal";
 }
 
-function toiletCondition(restroomConditions, toiletTypes, globalIdx) {
-  const type = String(toiletTypes[globalIdx] ?? "").toLowerCase();
-  if (type === "nonexistent") return "Non-Existent";
-  const pool =
-    type === "stall"
-      ? restroomConditions?.stalls
-      : restroomConditions?.urinals;
-  const id = globalIdx + 1;
-  const entry = pool?.find((x) => x.id === id || x.id === String(id));
-  return entry?.condition ?? "Clean";
-}
-
-function formatProbability(pct) {
-  const fraction = pct / 100;
-  const s = Number.isInteger(fraction)
-    ? String(fraction)
-    : fraction.toFixed(2);
-  return `${s} (${pct}%)`;
+function buildConditionsWithOccupancy(restroomConditions, occupancy, forceCleanWhenOpen) {
+  const override = (pool) =>
+    pool.map((entry) => {
+      const idx = entry.id - 1;
+      if (occupancy[idx] === "occupied") return { ...entry, condition: "In-Use" };
+      if (forceCleanWhenOpen && entry.condition !== "Non-Existent")
+        return { ...entry, condition: "Clean" };
+      return entry;
+    });
+  return {
+    stalls: override(restroomConditions?.stalls ?? []),
+    urinals: override(restroomConditions?.urinals ?? []),
+  };
 }
 
 export default function BehavioralModelDialog({
@@ -63,8 +44,23 @@ export default function BehavioralModelDialog({
 }) {
   const toiletTypes = toiletTypesForPreset(simulationConfig.restroomPreset);
   const resolvedConfig = { ...simulationConfig, toiletTypes };
-  const shy = simulationConfig.shyPeerPct;
-  const mid = simulationConfig.middleToiletFirstChoicePct;
+
+  const [occupancy, setOccupancy] = useState(() =>
+    Array.from({ length: 6 }, () => "unoccupied")
+  );
+  const [userType, setUserType] = useState("pee");
+
+  const handleOccupancy = (idx, value) =>
+    setOccupancy((prev) => prev.map((v, i) => (i === idx ? value : v)));
+
+  const expectedConditions = useMemo(
+    () => buildConditionsWithOccupancy(restroomConditions, occupancy, true),
+    [restroomConditions, occupancy]
+  );
+  const simulatedConditions = useMemo(
+    () => buildConditionsWithOccupancy(restroomConditions, occupancy, false),
+    [restroomConditions, occupancy]
+  );
 
   return (
     <Dialog
@@ -87,75 +83,61 @@ export default function BehavioralModelDialog({
         </IconButton>
       </DialogTitle>
       <DialogContent dividers className="bm-dialog-content">
-        <Box className="bm-dialog-summary">
-          <Box className="bm-dialog-params-list">
-            <Typography component="p" className="bm-param-row">
-              <strong>
-                Key:
-              </strong>{" "}
-            </Typography>
-            <Typography component="p" className="bm-param-row">
-              <strong>
-                Probability Shy Pee-er <em>P(S.P)</em>:
-              </strong>{" "}
-              {formatProbability(shy)}
-            </Typography>
-            <Typography component="p" className="bm-param-row">
-              <strong>
-                Probability Middle Toilet as First Choice{" "}
-                <em>P(M.T.A.F.C)</em>:
-              </strong>{" "}
-              {formatProbability(mid)}
-            </Typography>
-            <Typography component="p" className="bm-param-row">
-              <strong>
-                Toilet Classification <em>T.C:</em>
-              </strong>{" "}
-            </Typography>
+        <Box className="bm-dialog-controls">
+          <Box className="bm-controls-toilets">
+            {toiletTypes.map((_, idx) => {
+              const label = toiletTypeLabel(toiletTypes, idx);
+              const isNonexistent = !label;
+              return (
+                <Box key={idx} className="bm-control-toilet">
+                  <Typography className="bm-control-label">
+                    {label ? `${idx + 1}. ${label}` : `${idx + 1}. —`}
+                  </Typography>
+                  <FormControl size="small" fullWidth disabled={isNonexistent}>
+                    <Select
+                      value={isNonexistent ? "unoccupied" : occupancy[idx]}
+                      onChange={(e) => handleOccupancy(idx, e.target.value)}
+                      className="bm-control-select"
+                    >
+                      <MenuItem value="unoccupied">Unoccupied</MenuItem>
+                      <MenuItem value="occupied">Occupied</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              );
+            })}
           </Box>
-
-          <TableContainer className="bm-dialog-table-wrap">
-            <Table size="small" className="bm-dialog-table">
-              <TableHead>
-                <TableRow>
-                  <TableCell className="bm-th">Toilet #</TableCell>
-                  <TableCell className="bm-th">Toilet Type</TableCell>
-                  <TableCell className="bm-th">Toilet Cleanliness</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {toiletTypes.map((_, idx) => (
-                  <TableRow key={idx} className="bm-tr">
-                    <TableCell className="bm-td">{idx + 1}</TableCell>
-                    <TableCell className="bm-td">
-                      {toiletTypeLabel(toiletTypes, idx)}
-                    </TableCell>
-                    <TableCell className="bm-td">
-                      {toiletCondition(restroomConditions, toiletTypes, idx)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <Box className="bm-control-user">
+            <Typography className="bm-control-label">Next User</Typography>
+            <FormControl size="small" fullWidth>
+              <Select
+                value={userType}
+                onChange={(e) => setUserType(e.target.value)}
+                className="bm-control-select"
+              >
+                <MenuItem value="pee">Pee</MenuItem>
+                <MenuItem value="poo">Poo</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
 
         <Box className="bm-dialog-cases-row">
           <Box className="bm-dialog-case-cell">
             <BehavioralModel
-              title="Pee Decision Tree (Empty Restroom)"
+              title="Expected Model"
               config={resolvedConfig}
-              restroomConditions={restroomConditions}
-              userType="pee"
+              restroomConditions={expectedConditions}
+              userType={userType}
               size="large"
             />
           </Box>
           <Box className="bm-dialog-case-cell">
             <BehavioralModel
-              title="Poo Decision Tree (Empty Restroom)"
+              title="Simulated Model"
               config={resolvedConfig}
-              restroomConditions={restroomConditions}
-              userType="poo"
+              restroomConditions={simulatedConditions}
+              userType={userType}
               size="large"
             />
           </Box>

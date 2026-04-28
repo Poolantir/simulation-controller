@@ -7,7 +7,7 @@ import {
   computeBehavioralTree,
   roundModelPercent,
 } from "../../lib/behavioralModel";
-import UsagePercentageSquare from "../UsagePercentageSquare/UsagePercentageSquare";
+import AnticipatedUsageSquare from "../AnticipatedUsageSquare/AnticipatedUsageSquare";
 import "./BehavioralModel.css";
 
 /**
@@ -340,7 +340,7 @@ export default function BehavioralModel({
                 )}
               </Box>
               <Box className="bm-leaf-usage">
-                <UsagePercentageSquare
+                <AnticipatedUsageSquare
                   percentage={roundModelPercent(
                     leafPercents[L.globalIdx] ?? 0
                   )}

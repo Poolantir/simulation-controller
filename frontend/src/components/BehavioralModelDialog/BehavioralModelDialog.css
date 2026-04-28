@@ -40,90 +40,55 @@
   overflow: hidden !important;
 }
 
-/* ---- Summary block ----
- * Unified white card wrapping BOTH the params key (left) and the per-toilet
- * context table (right). Height is content-driven (flex: 0 0 auto) so the
- * card hugs its rows and the cases row below gets every spare pixel. */
-.bm-dialog-summary {
+/* ---- Controls bar: toilet occupancy dropdowns + user type ---- */
+.bm-dialog-controls {
   display: flex;
   flex-direction: row;
-  gap: var(--space-5);
-  align-items: stretch;
+  gap: var(--space-4);
+  align-items: flex-end;
   flex: 0 0 auto;
   min-height: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border: var(--border-soft);
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
 
-.bm-dialog-params-list {
+.bm-controls-toilets {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-3);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bm-control-toilet {
   flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  overflow: visible;
+  gap: var(--space-1);
 }
 
-.bm-param-row {
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  line-height: var(--line-height-tight);
-  margin: 0 !important;
+.bm-control-user {
+  flex: 0 0 auto;
+  min-width: 7rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
-.bm-param-row strong {
-  font-weight: var(--font-weight-bold);
-}
-
-.bm-param-row em {
-  font-style: italic;
-  font-family: "Cambria Math", "Latin Modern Math", "STIX Two Math", Cambria,
-    Georgia, serif;
-  letter-spacing: 0.02em;
-}
-
-/* Per-toilet context table — compact, borderless (container holds the chrome) */
-.bm-dialog-table-wrap {
-  flex: 1 1 0;
-  min-width: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
-}
-
-.bm-dialog-table {
-  width: 100%;
-}
-
-.bm-dialog-table .bm-th,
-.bm-dialog-table .bm-td {
-  padding: 2px var(--space-3) !important;
+.bm-control-label {
   font-size: var(--font-size-xs) !important;
-  line-height: 1.2 !important;
-  border-bottom: var(--border-soft);
-}
-
-.bm-dialog-table .bm-th {
-  font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-bold) !important;
   color: var(--color-text);
-  background: var(--color-surface-alt);
+  line-height: var(--line-height-tight) !important;
+  white-space: nowrap;
 }
 
-.bm-dialog-table .bm-td {
-  color: var(--color-text);
-}
-
-.bm-dialog-table .bm-tr:last-of-type .bm-td {
-  border-bottom: none;
+.bm-control-select .MuiSelect-select {
+  font-size: var(--font-size-xs) !important;
+  padding: var(--space-1) var(--space-2) !important;
 }
 
 /* ---- Two decision trees: Pee | Poo (50% width each) ----
@@ -180,13 +145,17 @@
   transform: scale(0.60) !important;
 }
 
-.bm-dialog-case-cell .bm--large .bm-leaf-usage .usage-square {
-  width: 3.75rem;
-  min-width: 3.75rem;
-  height: 3.75rem;
+.bm-dialog-case-cell .bm--large .bm-leaf-usage .anticipated-square {
+  width: 4.5rem;
+  min-width: 4.5rem;
+  max-width: 4.5rem;
+  height: 4.5rem;
+  min-height: 4.5rem;
+  max-height: 4.5rem;
+  aspect-ratio: 1;
 }
 
-.bm-dialog-case-cell .bm--large .bm-leaf-usage .usage-square-text {
+.bm-dialog-case-cell .bm--large .bm-leaf-usage .anticipated-square-text {
   font-size: var(--font-size-sm) !important;
 }
 
@@ -198,11 +167,10 @@
   font-size: 26px;
 }
 
-/* Stack summary on narrow viewports. */
+/* Wrap controls on narrow viewports. */
 @media (max-width: 1100px) {
-  .bm-dialog-summary {
-    flex-direction: column;
-    flex: 0 0 auto;
+  .bm-dialog-controls {
+    flex-wrap: wrap;
   }
 }
 

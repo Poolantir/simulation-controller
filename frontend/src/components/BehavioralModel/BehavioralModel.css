@@ -168,30 +168,24 @@
   justify-content: center;
 }
 
-.bm--large .bm-leaf-usage .usage-square {
-  width: 3.25rem;
-  min-width: 3.25rem;
-  height: 3.25rem;
-  box-sizing: border-box;
-  border-radius: var(--radius-md);
+.bm--large .bm-leaf-usage .anticipated-square {
+  width: 4rem;
+  min-width: 4rem;
+  max-width: 4rem;
+  height: 4rem;
+  min-height: 4rem;
+  max-height: 4rem;
+  aspect-ratio: 1;
 }
 
-.bm--large .bm-leaf-usage .usage-square-text {
-  font-size: var(--font-size-xs) !important;
-  line-height: 1.1 !important;
-}
-
-.bm--small .bm-leaf-usage .usage-square {
-  width: 2rem;
-  min-width: 2rem;
-  height: 2rem;
-  box-sizing: border-box;
-  border-radius: var(--radius-md);
-}
-
-.bm--small .bm-leaf-usage .usage-square-text {
-  font-size: var(--font-size-sm) !important;
-  line-height: 1.1 !important;
+.bm--small .bm-leaf-usage .anticipated-square {
+  width: 2.75rem;
+  min-width: 2.75rem;
+  max-width: 2.75rem;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  max-height: 2.75rem;
+  aspect-ratio: 1;
 }
 
 /* ---- SVG text labels ---- */
