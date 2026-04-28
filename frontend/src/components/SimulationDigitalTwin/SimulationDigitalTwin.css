@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
 .digital-twin {
@@ -7,17 +12,6 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  /*
-   * No explicit `height: 100%` — flexbox `align-items: stretch`
-   * on the parent row already sizes this container to fill the
-   * cross-axis, correctly accounting for the margin below. With
-   * `height: 100%` set, the margin was being added ON TOP of
-   * 100%, pushing the bottom border past the viewport edge and
-   * clipping it. Stretch-only sizing matches the sidebar column
-   * (which uses padding instead of margin) so the two panes share
-   * the same vertical footprint.
-   */
-  /* left margin 0: gutter = sidebar padding-right only (= --space-5, same as gap between sidebar cards) */
   margin: var(--space-5) var(--space-5) var(--space-5) 0;
   padding: var(--space-6);
   gap: var(--space-8);
@@ -48,7 +42,6 @@
   gap: var(--space-6);
 }
 
-/* Labels live left of toilets in a fixed column. */
 .digital-twin-main-row .elapsed-time-block {
   flex: 0 0 12rem;
   width: 12rem;
@@ -60,11 +53,6 @@
   --fixture-scale-x: 0.80;
   --fixture-scale-y: 0.80;
   --pct-square-max: clamp(5rem, 12vmin, 10rem);
-  /*
-   * User tile inside fixture: decoupled from toilet scale. Match
-   * queue tile (.queue-block = 4.375rem / 70px) so in-use user icon
-   * reads as the same user that left the queue.
-   */
   --fixture-fill-size: 4.375rem;
   --fixture-label-font: var(--font-size-md);
   display: flex;
@@ -79,7 +67,6 @@
   overflow-y: hidden;
 }
 
-/* Six equal-height rows + hairline seps; absorbs column height */
 .toilet-column-stack {
   display: flex;
   flex-direction: column;
@@ -90,9 +77,7 @@
   flex: 1 1 0;
   min-height: 0;
   gap: 0;
-  /* Urinal sep: starts left of fixture (past bowl), runs through % square to match stall right edge */
   --urinal-art-column: 23.75rem;
-  /* ~12.8rem ≈ left edge of icon+urinal in 23.75rem column; 12rem run → small protrusion past bowl */
   --urinal-sep-left-run: 12rem;
   --urinal-sep-start: calc(var(--urinal-art-column) - var(--urinal-sep-left-run));
   --sep-right-inset: 0rem;
@@ -118,7 +103,6 @@
   width: 100%;
 }
 
-/* Twin-only: collapse legacy fixed left column so square sits closer. */
 .toilet-column .stall-container,
 .toilet-column .urinal-container {
   column-gap: var(--space-3);
@@ -136,7 +120,6 @@
   padding-right: var(--space-3);
 }
 
-/* Non-Existent slot: blank space; row keeps its height so separators stay aligned. */
 .toilet-column-nonexistent {
   flex: 1 1 0;
   min-height: 0;
@@ -146,7 +129,6 @@
   border: none;
 }
 
-/* Disconnected slot: same footprint as a real fixture, but shows a label. */
 .toilet-column-disconnected {
   flex: 1 1 0;
   min-height: 0;
@@ -167,12 +149,6 @@
   text-transform: uppercase;
 }
 
-/*
- * Square: side = min(row height, cap). When capped shorter than row,
- * align-self: stretch + max-height behaves like flex-start in browsers
- * → square hugged top, icons stay centered in left column → mismatch.
- * align-self: center fixes vertical alignment with toilet row.
- */
 .toilet-column .usage-square {
   align-self: center;
   height: min(100%, var(--pct-square-max, 10rem));
@@ -180,7 +156,6 @@
   aspect-ratio: 1;
   flex-shrink: 0;
   max-height: var(--pct-square-max, 10rem);
-  /* Square must hug right edge; no dead space after shrink. */
   margin-left: auto;
 }
 
@@ -188,30 +163,23 @@
   font-size: clamp(1rem, 2.6vmin, 2.25rem) !important;
 }
 
-/* Fixture usage fill sizing inside twin. */
 .toilet-column .stall-container-fill,
 .toilet-column .urinal-container-fill {
   width: var(--fixture-fill-size);
   height: var(--fixture-fill-size);
 }
 
-/* Keep labeled text readable after scaling. */
 .toilet-column .usage-icon-number,
 .toilet-column .usage-icon-timer {
   font-size: var(--fixture-label-font);
 }
 
-/* Scale toilet artwork itself (stall/urinal) so it never looks crammed. */
 .toilet-column .stall,
 .toilet-column .urinal {
   transform: scale(var(--fixture-scale-x), var(--fixture-scale-y));
   transform-origin: center;
 }
 
-/*
- * Separator below toilet i uses toilet i’s kind from config.
- * Stall: full row width. Urinal: inset start under fixtures, then spans to % square right edge.
- */
 .toilet-column-separator {
   height: 0.125rem;
   flex-shrink: 0;
@@ -236,19 +204,18 @@
 
 @media (max-height: 850px) {
   .toilet-column {
-    --fixture-scale-x: 0.24;
-    --fixture-scale-y: 0.19;
+    --fixture-scale-x: 0.75;
+    --fixture-scale-y: 0.75;
   }
 }
 
 @media (min-height: 1080px) {
   .toilet-column {
-    --fixture-scale-x: 0.36;
-    --fixture-scale-y: 0.29;
+    --fixture-scale-x: 0.90;
+    --fixture-scale-y: 0.90;
   }
 }
 
-/* Ultra-wide: slightly larger padding/gap so the twin pane breathes */
 @media (min-width: 1800px) {
   .digital-twin {
     padding: var(--space-8);

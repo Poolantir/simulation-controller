@@ -40,18 +40,44 @@
   overflow: hidden !important;
 }
 
-/* ---- Controls bar: toilet occupancy dropdowns + user type ---- */
+/* ---- Controls bar: Reset | Next User | toilet occupancy dropdowns ---- */
 .bm-dialog-controls {
   display: flex;
   flex-direction: row;
-  gap: var(--space-4);
-  align-items: flex-end;
+  gap: var(--space-5);
+  align-items: center;
   flex: 0 0 auto;
   min-height: 0;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-4) var(--space-5);
   border: var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-alt);
+}
+
+.bm-control-reset {
+  flex-shrink: 0;
+  align-self: center;
+  text-transform: none !important;
+  font-size: var(--font-size-xs) !important;
+  font-weight: var(--font-weight-bold) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text-muted) !important;
+  background: var(--color-white) !important;
+  padding: var(--space-2) var(--space-4) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.bm-control-reset:hover {
+  border-color: var(--color-border-strong) !important;
+  color: var(--color-text) !important;
+  background: var(--color-surface) !important;
+}
+
+.bm-controls-separator {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-border);
+  flex-shrink: 0;
 }
 
 .bm-controls-toilets {
@@ -88,7 +114,9 @@
 
 .bm-control-select .MuiSelect-select {
   font-size: var(--font-size-xs) !important;
-  padding: var(--space-1) var(--space-2) !important;
+  padding: var(--space-2) var(--space-3) !important;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm) !important;
 }
 
 /* ---- Two decision trees: Pee | Poo (50% width each) ----

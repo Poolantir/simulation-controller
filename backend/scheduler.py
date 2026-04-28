@@ -1032,6 +1032,7 @@ class Scheduler:
                 ):
                     user_type = fixture.current_user_type
                     q_done = fixture.current_queue_item_id
+                    duration = fixture.current_duration_s
                     fixture.in_use = False
                     fixture.busy_until = None
                     fixture.current_user_type = None
@@ -1046,6 +1047,10 @@ class Scheduler:
                             "user_type": user_type,
                             "queue_item_id": q_done,
                             "satisfied_users": self._satisfied_users,
+                            "duration_s": duration,
+                            "restroom": restroom_from_preset(self._config.restroom_preset),
+                            "mode": self._mode,
+                            "success": True,
                         }
                     )
         for ev in released:
@@ -1114,6 +1119,7 @@ class Scheduler:
                 return {"ok": False, "error": f"fixture {node_id} not in use"}
             q_id = fixture.current_queue_item_id
             user_type = fixture.current_user_type
+            duration = fixture.current_duration_s
             fixture.in_use = False
             fixture.busy_until = None
             fixture.occupancy_remaining_s = None
@@ -1131,6 +1137,10 @@ class Scheduler:
                 "user_type": user_type,
                 "queue_item_id": q_id,
                 "satisfied_users": self._satisfied_users,
+                "duration_s": duration,
+                "restroom": restroom_from_preset(self._config.restroom_preset),
+                "mode": self._mode,
+                "success": success,
             }
         server_log.publish_line(
             f"[SCHEDULER] user {q_id} complete! Freeing toilet {node_id}"
@@ -1197,6 +1207,17 @@ class Scheduler:
         log.info("scheduler tick thread stopped")
 
 
+_PRESET_TO_RESTROOM = {
+    "maclean_2m": "maclean_f2_mens",
+    "seamen_1m": "seamans_f1_mens",
+}
+
+
+def restroom_from_preset(preset_id: str) -> str:
+    """Map a restroom preset id (e.g. ``maclean_2m``) to its Influx restroom tag."""
+    return _PRESET_TO_RESTROOM.get(preset_id, preset_id)
+
+
 def _normalise_toilet_types(types: Iterable[str]) -> List[str]:
     """
     Coerce an arbitrary iterable into a 6-element list of
@@ -1236,4 +1257,5 @@ __all__ = [
     "RUNTIME_RUNNING",
     "VALID_RUNTIMES",
     "API_SIM_USER_RUNTIMES",
+    "restroom_from_preset",
 ]

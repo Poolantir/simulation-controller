@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./styles.css";

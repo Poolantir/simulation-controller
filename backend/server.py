@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import queue
+import uuid
 from pathlib import Path
 from typing import Any, Dict
 
@@ -30,6 +31,7 @@ from scheduler import (  # noqa: E402
     VALID_MODES,
 )
 import server_log  # noqa: E402
+from influx_layer import InfluxWriter, UserCycleRecord  # noqa: E402
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -45,6 +47,33 @@ ble.start()
 
 scheduler = Scheduler(send_to_node=ble.send)
 scheduler.start()
+
+# ---- InfluxDB telemetry (best-effort, non-blocking) -----------------
+
+_run_id = str(uuid.uuid4())
+_influx = InfluxWriter()
+
+
+def _on_assignment_completed(event: str, data: Dict[str, Any]) -> None:
+    if event != "assignment_completed":
+        return
+    duration = data.get("duration_s")
+    if duration is None:
+        return
+    _influx.write_user_cycle(
+        UserCycleRecord(
+            restroom=data.get("restroom", "unknown"),
+            node_id=int(data.get("fixture_id", 0)),
+            toilet_type=data.get("fixture_kind", "unknown"),
+            duration_s=float(duration),
+            run_id=_run_id,
+            user_id=str(data.get("queue_item_id", "")),
+            mode=data.get("mode", "UNKNOWN"),
+        )
+    )
+
+
+scheduler.subscribe(_on_assignment_completed)
 
 
 def _sync_node_connections(snap: Dict[int, Dict[str, Any]]) -> None:

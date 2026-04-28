@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Box,
+  Button,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -11,6 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import BehavioralModel from "../BehavioralModel/BehavioralModel";
 import { toiletTypesForPreset } from "../../lib/restroomPresets";
 import "./BehavioralModelDialog.css";
@@ -53,6 +55,9 @@ export default function BehavioralModelDialog({
   const handleOccupancy = (idx, value) =>
     setOccupancy((prev) => prev.map((v, i) => (i === idx ? value : v)));
 
+  const handleReset = () =>
+    setOccupancy(Array.from({ length: 6 }, () => "unoccupied"));
+
   const expectedConditions = useMemo(
     () => buildConditionsWithOccupancy(restroomConditions, occupancy, true),
     [restroomConditions, occupancy]
@@ -84,6 +89,34 @@ export default function BehavioralModelDialog({
       </DialogTitle>
       <DialogContent dividers className="bm-dialog-content">
         <Box className="bm-dialog-controls">
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RestartAltIcon />}
+            onClick={handleReset}
+            className="bm-control-reset"
+          >
+            Reset
+          </Button>
+
+          <Box className="bm-controls-separator" />
+
+          <Box className="bm-control-user">
+            <Typography className="bm-control-label">Next User</Typography>
+            <FormControl size="small" fullWidth>
+              <Select
+                value={userType}
+                onChange={(e) => setUserType(e.target.value)}
+                className="bm-control-select"
+              >
+                <MenuItem value="pee">Pee</MenuItem>
+                <MenuItem value="poo">Poo</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box className="bm-controls-separator" />
+
           <Box className="bm-controls-toilets">
             {toiletTypes.map((_, idx) => {
               const label = toiletTypeLabel(toiletTypes, idx);
@@ -106,19 +139,6 @@ export default function BehavioralModelDialog({
                 </Box>
               );
             })}
-          </Box>
-          <Box className="bm-control-user">
-            <Typography className="bm-control-label">Next User</Typography>
-            <FormControl size="small" fullWidth>
-              <Select
-                value={userType}
-                onChange={(e) => setUserType(e.target.value)}
-                className="bm-control-select"
-              >
-                <MenuItem value="pee">Pee</MenuItem>
-                <MenuItem value="poo">Poo</MenuItem>
-              </Select>
-            </FormControl>
           </Box>
         </Box>
 

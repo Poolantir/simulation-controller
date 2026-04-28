@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
 .usage-icon {
@@ -35,10 +40,6 @@
   color: var(--color-brown-dark) !important;
 }
 
-/* Label mode: number stacked over small timer label. Shared layout
- * for queue tiles, traveling preview markers, and in-use fixture
- * fills — the parent className still dictates the box size via the
- * usual `.queue-block` / `.stall-container-fill` / etc. sizing. */
 .usage-icon--labeled {
   flex-direction: column;
   gap: 0.125rem;
@@ -70,8 +71,6 @@
 .usage-icon-poo .usage-icon-timer {
   color: var(--color-brown-dark);
 }
-
-/* ---- Flash pulse animations ---- */
 
 @keyframes usage-icon-flash-pulse {
   0%   { opacity: 1; transform: scale(1); }

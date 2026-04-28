@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
 .sidebar-square {
@@ -9,13 +14,6 @@
   overflow: visible;
   display: flex;
   flex-direction: column;
-  /*
-   * Without min-height: 0, a flex child defaults to min-height:
-   * auto (== min-content), which lets tall children (e.g. a long
-   * simulation log list) inflate this square past its allotted
-   * `flex` share and overflow the sidebar column. Pinning to 0
-   * lets the inner scroll container clip correctly.
-   */
   min-height: 0;
 }
 

@@ -27,6 +27,7 @@ from scheduler import (  # noqa: E402
     RUNTIME_RUNNING,
     RUNTIME_STOPPED,
     Scheduler,
+    restroom_from_preset,
 )
 
 
@@ -825,6 +826,66 @@ class PeeStallFallbackTests(unittest.TestCase):
             ),
             msg="pee user should fall back to a stall when urinals full",
         )
+
+
+class RestroomFromPresetTests(unittest.TestCase):
+    def test_maclean(self):
+        self.assertEqual(restroom_from_preset("maclean_2m"), "maclean_f2_mens")
+
+    def test_seamen(self):
+        self.assertEqual(restroom_from_preset("seamen_1m"), "seamans_f1_mens")
+
+    def test_unknown_falls_back(self):
+        self.assertEqual(restroom_from_preset("custom_layout"), "custom_layout")
+
+
+class CompletionPayloadTests(unittest.TestCase):
+    """Verify `assignment_completed` includes duration_s, restroom, mode, success."""
+
+    def setUp(self):
+        self._orig_pee = scheduler_module.PEE_DURATION_RANGE_S
+        self._orig_poo = scheduler_module.POO_DURATION_RANGE_S
+        self._orig_preview = scheduler_module.PREVIEW_DURATION_S
+        scheduler_module.PEE_DURATION_RANGE_S = (0.1, 0.15)
+        scheduler_module.POO_DURATION_RANGE_S = (0.2, 0.25)
+        scheduler_module.PREVIEW_DURATION_S = 0.15
+
+        self.events = []
+        self.sched = Scheduler(rng=random.Random(7))
+        self.sched.subscribe(lambda ev, data: self.events.append((ev, data)))
+        self.sched.set_mode(MODE_DUMMY)
+        self.sched.set_config(
+            restroom_preset="maclean_2m",
+            toilet_types=MACLEAN,
+            shy_peer_pct=50.0,
+            middle_toilet_first_choice_pct=2.0,
+        )
+        self.sched.set_sim_runtime(RUNTIME_RUNNING)
+        self.sched.start()
+
+    def tearDown(self):
+        self.sched.stop()
+        scheduler_module.PEE_DURATION_RANGE_S = self._orig_pee
+        scheduler_module.POO_DURATION_RANGE_S = self._orig_poo
+        scheduler_module.PREVIEW_DURATION_S = self._orig_preview
+
+    def test_completion_has_duration_restroom_mode(self):
+        self.sched.enqueue("pee")
+        self.assertTrue(
+            _wait_until(
+                lambda: any(
+                    ev == "assignment_completed" for ev, _ in self.events
+                ),
+                timeout=2.0,
+            )
+        )
+        completed = next(d for ev, d in self.events if ev == "assignment_completed")
+        self.assertIn("duration_s", completed)
+        self.assertIsInstance(completed["duration_s"], float)
+        self.assertGreater(completed["duration_s"], 0)
+        self.assertEqual(completed["restroom"], "maclean_f2_mens")
+        self.assertEqual(completed["mode"], MODE_DUMMY)
+        self.assertTrue(completed["success"])
 
 
 if __name__ == "__main__":

@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CssBaseline, ThemeProvider, createTheme, Box } from "@mui/material";
 import Header from "./components/Header/Header";
@@ -58,11 +63,6 @@ const APP_MODE_SIM = "SIM";
 const APP_MODE_TEST = "TEST";
 const APP_MODE_DUMMY = "DUMMY";
 
-/**
- * Build a clean restroom-conditions / fixture state from a preset.
- * "Clean" for active slots, "Non-Existent" for locked ones; usage at 0.
- * Stall ids = 1..3, urinal ids = 4..6 (slot index + 1).
- */
 function buildInitialRestroomState(presetId) {
   const types = toiletTypesForPreset(presetId);
   const conditionFor = (idx) =>
@@ -117,9 +117,6 @@ export default function App() {
   );
   const [nodeFlashParams, setNodeFlashParams] = useState({});
 
-  // Backend Dummy Mode state — hydrated from the scheduler SSE stream.
-  // Separate from local sim state so switching modes doesn't clobber
-  // either side.
   const [dummyQueue, setDummyQueue] = useState([]);
   const [dummyStalls, setDummyStalls] = useState(EMPTY_DUMMY_FIXTURES.stalls);
   const [dummyUrinals, setDummyUrinals] = useState(
@@ -129,43 +126,22 @@ export default function App() {
   const [dummyExitedUsers, setDummyExitedUsers] = useState(0);
   const [dummyTotalArrivals, setDummyTotalArrivals] = useState(0);
   const [dummySimTimeMs, setDummySimTimeMs] = useState(0);
-  // Dummy-mode sim clock: backend sends authoritative `sim_time_s` on
-  // SSE; between snapshots we advance display from wall time so
-  // Elapsed Time ticks every second while running (not only on events).
   const dummySimTimeBaseMsRef = useRef(0);
   const dummySimTimeWallAtBaseRef = useRef(0);
-  // Active queue -> toilet preview animations (3 s each). Keyed by
-  // (queueItemId, fixtureId) so a fixture can only host one preview.
-  // Hydrated from the SSE stream's `assignment_preview` events and
-  // cleared on `assignment_started` / `assignment_preview_cancelled` /
-  // snapshot replacement.
   const [pendingTransfers, setPendingTransfers] = useState([]);
-  // Per-fixture record of which queued user is currently occupying
-  // it, plus their sampled duration and absolute busy-until deadline
-  // (client-clock ms). Drives the numbered + countdown tile rendered
-  // inside each active stall/urinal. Only populated in Dummy Mode
-  // since SIM mode has no scheduler-driven assignment flow.
   const [activeFixtureUsers, setActiveFixtureUsers] = useState({});
-  // Dummy mode: `queue_item_exited` arrives before `queue_updated`; we
-  // stash the row for 1s so UsageIcon can play the same danger flash
-  // as SIM mode (server queue no longer includes that id).
   const [exitingQueueFlashes, setExitingQueueFlashes] = useState({});
   const dummyQueueRef = useRef([]);
   useEffect(() => {
     dummyQueueRef.current = dummyQueue;
   }, [dummyQueue]);
 
-  // Keep a ref of current appMode for async callbacks that mustn't
-  // capture a stale value (SSE handlers and log emitters).
   const appModeRef = useRef(appMode);
   useEffect(() => {
     appModeRef.current = appMode;
   }, [appMode]);
   const simulationStatusRef = useRef(simulationStatus);
-  /** First Play after load/reset should clear SIM counters like stopped→running. */
   const simNeedsPlayResetRef = useRef(true);
-  // True once Play has been pressed since load/reset. Drives
-  // "labels empty before first play" per spec state 1 / 5.
   const [hasPlayedSession, setHasPlayedSession] = useState(false);
   useEffect(() => {
     simulationStatusRef.current = simulationStatus;
@@ -226,8 +202,6 @@ export default function App() {
       simulationStatus !== "running"
     )
       return undefined;
-    // Re-anchor: after pause, wall clock gap must not add to sim time.
-    // Also fixes first play before first SSE (refs were 0,0).
     setDummySimTimeMs((t) => {
       dummySimTimeBaseMsRef.current = t;
       dummySimTimeWallAtBaseRef.current = Date.now();
@@ -307,17 +281,10 @@ export default function App() {
     return close;
   }, []);
 
-  // Subscribe to the scheduler SSE stream so the digital twin reflects
-  // live queue/occupancy in Dummy Mode. We stay subscribed regardless
-  // of mode so the UI can hydrate the moment the user switches to
-  // Dummy, but we only render dummy state in render when active.
   useEffect(() => {
     const applySnapshot = (snap) => {
       const mapped = schedulerSnapshotToFrontendState(snap);
       if (!mapped) return;
-      // Keep any per-item durationS we've already seen for this queue
-      // item — older backends don't include `duration_s` on the queue
-      // payload, but once we have a value it's stable for that user.
       setDummyQueue((prev) => {
         const prevById = new Map(prev.map((x) => [x.id, x]));
         return mapped.queue.map((q) => {
@@ -343,20 +310,6 @@ export default function App() {
         dummySimTimeWallAtBaseRef.current = Date.now();
         setDummySimTimeMs(simMs);
       }
-      // NOTE: we intentionally do NOT mirror `mapped.runtime` into
-      // `simulationStatus`. The Play/Pause button is the source of
-      // truth for UI intent; piping stale scheduler_state snapshots
-      // back into status caused click-Play-then-flip-to-Pause races
-      // when a snapshot emitted before the POST completed arrived on
-      // the SSE stream. Backend runtime is kept in sync via the
-      // `handleSimulationStatus`/`handleAppModeChange` POSTs instead.
-      // Snapshot is authoritative for in-use fixtures. Only preserve
-      // prior identity fields (userNumber / userType) as fallbacks in
-      // case the snapshot omitted them. `busyUntilMs` and `durationS`
-      // are taken from the snapshot as-is: pausing the simulation
-      // means backend sends `busyUntilMs=null` + remaining seconds on
-      // `durationS`, and a ??-fallback would keep the old future
-      // deadline and the UI would keep counting down past pause.
       setActiveFixtureUsers((prev) => {
         const next = { ...prev };
         const snapUsers = mapped.activeFixtureUsers || {};
@@ -377,8 +330,6 @@ export default function App() {
         }
         return next;
       });
-      // Hydrate preview animations from the authoritative snapshot so
-      // a page refresh in the middle of a preview still shows arrows.
       setPendingTransfers(
         Array.isArray(mapped.pendingTransfers) ? mapped.pendingTransfers : []
       );
@@ -483,9 +434,6 @@ export default function App() {
         const dur = Number(data?.duration_s);
         const busyUntilRaw = data?.busy_until;
         const busyUntilServer = busyUntilRaw != null ? Number(busyUntilRaw) : NaN;
-        // `busy_until` is server wall-clock seconds. Convert to client
-        // `Date.now()` ms, falling back to "now + duration" if the
-        // event omitted either field so the countdown still runs.
         const busyUntilMs = Number.isFinite(busyUntilServer)
           ? busyUntilServer * 1000
           : Number.isFinite(dur)
@@ -542,7 +490,6 @@ export default function App() {
     return close;
   }, []);
 
-  // Prune activeFixtureUsers completion flash + dummy queue exit flashes.
   useEffect(() => {
     const id = setInterval(() => {
       const now = Date.now();
@@ -577,10 +524,6 @@ export default function App() {
     [simulationConfig.restroomPreset]
   );
 
-  // Whenever the simulation config or cleanliness changes, push an
-  // updated snapshot to the backend scheduler. This keeps the dummy
-  // scheduler's decisions in sync with the Behavioral Model dialog
-  // the user is looking at, regardless of the current mode.
   useEffect(() => {
     updateSchedulerConfig({
       restroomPreset: simulationConfig.restroomPreset,
@@ -607,12 +550,6 @@ export default function App() {
     setSimulationConfig((prev) => ({ ...prev, ...partial }));
   };
 
-  /**
-   * Align conditions + twin fixture usage with the preset's nonexistent slots.
-   * Fixture id === global slot index + 1, so stall id 3 and urinal id 6 are
-   * the locked slots in the Seamen preset. Switching back to a layout where
-   * those slots are active resets them to "Clean" with zero usage.
-   */
   const syncStateForPreset = (presetId) => {
     const types = toiletTypesForPreset(presetId);
     setRestroomConditions((prev) => ({
@@ -647,11 +584,6 @@ export default function App() {
     );
   };
 
-  /**
-   * Update a single fixture's condition.
-   * `kind` is the restroomConditions key ("stalls" | "urinals"); `id` is the
-   * fixture id (1..6). Non-existent slots are immutable.
-   */
   const handleConditionChange = (kind, id, condition) => {
     setRestroomConditions((prev) => ({
       ...prev,
@@ -663,7 +595,6 @@ export default function App() {
     }));
   };
 
-  /** Step every existing toilet by `delta` cleanliness levels. */
   const bumpAllConditions = (delta) => {
     setRestroomConditions((prev) => ({
       stalls: prev.stalls.map((s) => ({
@@ -680,7 +611,6 @@ export default function App() {
   const handleIncreaseCleanlinessAll = () => bumpAllConditions(+1);
   const handleDecreaseCleanlinessAll = () => bumpAllConditions(-1);
 
-  /** Reset every existing toilet to "Clean"; non-existent slots stay locked. */
   const handleSendMaintenance = () => {
     setRestroomConditions((prev) => ({
       stalls: prev.stalls.map((s) =>
@@ -692,13 +622,6 @@ export default function App() {
     }));
   };
 
-  /**
-   * Append a SIM-mode queue item with a backend-sampled duration so
-   * the tile's timer label matches Dummy Mode's distribution. The
-   * tile is inserted optimistically with `durationS: null`; once the
-   * round-trip returns the duration is patched in. If the request
-   * fails the label simply stays blank (user is still usable).
-   */
   const canMutateActiveQueue = () => {
     const s = simulationStatusRef.current;
     return (
@@ -787,17 +710,9 @@ export default function App() {
     setActiveFixtureUsers({});
     setExitingQueueFlashes({});
     setPendingTransfers([]);
-    // Reset backend scheduler too — clears any queued/in-use work and
-    // counters across all modes. Dummy mode hydration will pick up the
-    // cleared snapshot via SSE.
     resetScheduler();
   };
 
-  /**
-   * Dispatch a Test Bench command to a single node via the backend.
-   * Logs the outgoing payload immediately, then appends an ACK/ERR line
-   * once the HTTP round-trip completes.
-   */
   const handleTestSend = useCallback(async (id, payload) => {
     const result = await sendToNode(id, payload);
     if (!result.ok) {
@@ -831,16 +746,6 @@ export default function App() {
     setLogs((prev) => [...prev, line]);
   }, []);
 
-  /**
-   * Switch the app-wide mode between SIM, TEST, and DUMMY.
-   *
-   * SIM/TEST: broadcast `{command:"MODE", type:"SET", action:<SIM|TEST>}`
-   * to every currently-connected node (nodes only understand SIM/TEST).
-   * DUMMY: purely in-process, no node traffic.
-   *
-   * In every case the backend scheduler is told the new mode so it
-   * starts/stops its tick assignment behaviour accordingly.
-   */
   const handleAppModeChange = async (next) => {
     if (
       next !== APP_MODE_SIM &&
@@ -850,8 +755,6 @@ export default function App() {
       return;
     if (next === appMode) return;
     setAppMode(next);
-    // Flip backend scheduler mode first so the subsequent runtime POST
-    // (only valid in DUMMY) is accepted.
     await setSchedulerMode(next);
     if (next === APP_MODE_DUMMY || next === APP_MODE_SIM) {
       const desired =
@@ -898,9 +801,6 @@ export default function App() {
   const elapsedTimeText = formatSimElapsed(
     usesScheduler ? dummySimTimeMs : simElapsedMs
   );
-  // In Dummy Mode the digital twin is a pure simulation; the BLE node
-  // connection state is irrelevant so we hide the "Node Disconnected"
-  // overlay by claiming everything is connected.
   const viewNodeConnections = isDummy
     ? Array.from({ length: NODE_COUNT }, () => true)
     : nodeConnections;

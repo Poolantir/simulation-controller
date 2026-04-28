@@ -1,6 +1,10 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
-/* One rounded rectangle: title (top) | scrollable middle | total (bottom), gap 0 */
 .queue-container {
   display: flex;
   flex-direction: column;
@@ -29,7 +33,6 @@
   border-bottom: var(--border-width-thin) solid var(--color-border);
 }
 
-/* Middle: add actions + clear + scrollable queue items */
 .queue-body {
   display: flex;
   flex-direction: column;
@@ -49,7 +52,6 @@
   justify-content: center;
 }
 
-/* Same as `.condition-batch-btn` / simulation `.control-btn-*` (outlined gray) */
 .queue-clear-btn {
   flex-shrink: 0;
   width: 100% !important;
@@ -120,7 +122,6 @@
   width: 100%;
   align-items: center;
   box-sizing: border-box;
-  /* Scrollable but no visible scrollbar (no width eaten by gutter) */
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -131,9 +132,8 @@
   height: 0;
 }
 
-/* Sizing for the shared UsageIcon when used inside the queue */
 .queue-block {
-  width: 4.375rem;     /* 70px — square tile */
+  width: 4.375rem;  
   height: 4.375rem;
   max-width: 100%;
   aspect-ratio: 1;
@@ -141,8 +141,6 @@
   box-sizing: border-box;
 }
 
-/* Wrapper lets the overlay anchor to a stable box per queue item
- * regardless of how the inner UsageIcon is styled in each variant. */
 .queue-block-wrapper {
   display: flex;
   align-items: center;
@@ -150,15 +148,10 @@
   width: 100%;
 }
 
-/* While a user is animating toward their assigned toilet the queue
- * entry ghosts out so the traveling icon reads as "this one". */
 .queue-block--leaving {
   opacity: 0.25 !important;
   transition: opacity var(--transition-fast);
 }
-
-/* Expiring / timed-out row: `UsageIcon` `flash="danger"` — same pulse
- * keyframes as completion (`usage-icon--flash-danger` in UsageIcon.css). */
 
 .queue-total {
   flex-shrink: 0;
