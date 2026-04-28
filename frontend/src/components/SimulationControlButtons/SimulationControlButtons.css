@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
 .control-buttons-row {
@@ -21,7 +26,6 @@
   white-space: nowrap !important;
 }
 
-/* Same border / surface treatment as "+1 Cleanliness to All" (`.condition-batch-btn`) */
 .control-btn-start,
 .control-btn-pause {
   background-color: var(--color-gray-100) !important;
@@ -43,7 +47,6 @@
   border-color: var(--color-gray-600) !important;
 }
 
-/* Running: play highlights green; Paused: pause highlights red */
 .control-btn--active {
   background-color: #e8f5e9 !important;
   color: #1b5e20 !important;

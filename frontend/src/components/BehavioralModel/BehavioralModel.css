@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
 .bm {
@@ -8,7 +13,6 @@
   width: 100%;
 }
 
-/* Case title + descriptive label on one row (frees height for the canvas) */
 .bm-heading {
   display: flex;
   flex-direction: row;
@@ -49,7 +53,6 @@
 .bm-canvas {
   position: relative;
   width: 100%;
-  /* viewBox aspect 1000 : 900 → padding-bottom 90% */
   aspect-ratio: 1000 / 900;
 }
 
@@ -70,14 +73,13 @@
   pointer-events: none;
 }
 
-/* ---- User icon (level-0) ---- */
 .bm-user {
   position: absolute;
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 11%;          /* matches SVG userRect w = 110/1000 */
+  width: 11%;          
   aspect-ratio: 1 / 1;
 }
 
@@ -95,9 +97,6 @@
   font-size: 1.75rem !important;
 }
 
-/* ---- Leaves ----
- * Anchor with left+right and flex-end so icon + % tile stay inside the
- * canvas (a fixed `left` + unconstrained width was overflowing past 100%). */
 .bm-leaf {
   position: absolute;
   left: 57%;
@@ -118,11 +117,9 @@
 
 .bm-leaf-art-wrap {
   position: relative;
-  /* fixed footprint so 6 rows stack; clip vertical bleed only */
   overflow: hidden;
 }
 
-/* Digital Twin uses `size="large"` fixtures; we scale to fit the row. */
 .bm--large .bm-leaf-art-wrap {
   width: 4.75rem;
   height: 4.75rem;
@@ -142,10 +139,6 @@
   overflow: visible;
 }
 
-/*
- * `size="large"` matches StallContainer / UrinalContainer (avoids `stall--small` layout side effects).
- * Centered origin keeps bowl (left) + wall (right) fully visible in the frame.
- */
 .bm--large .bm-leaf-art .stall,
 .bm--large .bm-leaf-art .urinal {
   transform: scale(0.58) !important;
@@ -160,7 +153,6 @@
   flex-shrink: 0;
 }
 
-/* ---- Total %: same `usage-square` as Digital Twin — ~0.36× twin size (9.0625rem base) ---- */
 .bm-leaf-usage {
   flex-shrink: 0;
   display: flex;
@@ -188,7 +180,6 @@
   aspect-ratio: 1;
 }
 
-/* ---- SVG text labels ---- */
 .bm-edge-label {
   fill: var(--color-text);
   font-weight: var(--font-weight-regular);

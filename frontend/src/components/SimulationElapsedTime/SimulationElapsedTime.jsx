@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { Box, Typography } from "@mui/material";
 import "./SimulationElapsedTime.css";
 
@@ -6,11 +11,6 @@ export default function SimulationElapsedTime({
   satisfiedUsers,
   exitedUsers,
   totalUsers,
-  /**
-   * When false, hide the numeric values so the UI reads as "empty"
-   * before the first Play of a session (or after a reset). The labels
-   * themselves stay rendered to preserve layout.
-   */
   showStats = true,
 }) {
   return (

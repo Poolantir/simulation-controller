@@ -1,12 +1,6 @@
-/**
- * Thin client for the Flask/BLE backend.
- *
- * `openNodeStatusStream` wires up an EventSource that publishes
- * `connected`/`address` for each of the 6 nodes. The browser re-opens the
- * connection automatically when the backend drops it; we also layer a
- * manual retry in case the initial connect fails (e.g. backend not up yet).
- *
- * `sendToNode` posts a JSON payload to `/api/nodes/<id>/send`.
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
  */
 
 const API_BASE =
@@ -21,15 +15,10 @@ export function getApiBase() {
 
 export const NODE_COUNT = 6;
 
-/** Build a [false, false, ...] array of length 6. */
 export function emptyConnections() {
   return Array.from({ length: NODE_COUNT }, () => false);
 }
 
-/**
- * Convert the backend snapshot ({"1": {connected,address}, ...}) into a
- * fixed-length boolean array indexed by `node_id - 1`.
- */
 export function snapshotToConnections(snapshot) {
   const out = emptyConnections();
   if (!snapshot || typeof snapshot !== "object") return out;
@@ -41,10 +30,6 @@ export function snapshotToConnections(snapshot) {
   return out;
 }
 
-/**
- * GET / SERVO_RAMP | IN_RANGE from ESP32: `action` may be a number (legacy) or
- * `{ SERVO_RAMP: n }` / `{ IN_RANGE: n }` per COMMANDS.md.
- */
 function coalesceGetFlashAction(type, action) {
   if (typeof action === "number" && Number.isFinite(action)) return action;
   if (action && typeof action === "object" && !Array.isArray(action)) {
@@ -58,16 +43,6 @@ function coalesceGetFlashAction(type, action) {
   return null;
 }
 
-/**
- * Subscribe to /api/nodes/stream. Returns a close() function.
- *
- * Handlers:
- *   onConnections(boolArray)       — initial snapshot + each status change
- *   onInbound({node_id, payload, raw})  — each ESP32 -> server notification
- *   onFlashParams(nodeId, type, value)  — GET response with flash param
- *
- * Reconnects after 2s if the stream errors before `close()` is called.
- */
 export function openNodeStatusStream(onConnections, onInbound, onFlashParams) {
   let es = null;
   let closed = false;
@@ -81,7 +56,6 @@ export function openNodeStatusStream(onConnections, onInbound, onFlashParams) {
         const snap = JSON.parse(ev.data);
         onConnections(snapshotToConnections(snap));
       } catch {
-        /* ignore malformed frames */
       }
     });
     if (typeof onInbound === "function") {
@@ -101,7 +75,6 @@ export function openNodeStatusStream(onConnections, onInbound, onFlashParams) {
             }
           }
         } catch {
-          /* ignore malformed frames */
         }
       });
     }
@@ -110,7 +83,6 @@ export function openNodeStatusStream(onConnections, onInbound, onFlashParams) {
       try {
         es.close();
       } catch {
-        /* noop */
       }
       es = null;
       retryTimer = setTimeout(connect, 2000);
@@ -150,19 +122,14 @@ async function postJson(path, body) {
   }
 }
 
-/**
- * Send a JSON command to a node. Returns `{ ok, error? }`; never throws.
- */
 export async function sendToNode(id, payload) {
   return postJson(`/api/nodes/${id}/send`, payload);
 }
 
-/** Ask the backend to (re)connect node `id` via BLE. */
 export async function connectNode(id) {
   return postJson(`/api/nodes/${id}/connect`);
 }
 
-/** Ask the backend to drop node `id` and stop auto-reconnecting. */
 export async function disconnectNode(id) {
   return postJson(`/api/nodes/${id}/disconnect`);
 }

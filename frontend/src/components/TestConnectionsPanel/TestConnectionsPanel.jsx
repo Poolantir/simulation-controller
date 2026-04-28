@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { useEffect, useState } from "react";
 import { Box, Button, TextField, Typography } from "@mui/material";
 import "./TestConnectionsPanel.css";
@@ -8,8 +13,6 @@ const SERVO_ACTIONS = ["MAX", "REST"];
 
 const FLASH_IN_RANGE_MIN = 20;
 const FLASH_IN_RANGE_MAX = 2000;
-
-/* ── COMMANDS.md-aligned payload builders ── */
 
 function buildSimNew(userId, durationS) {
   return {
@@ -28,8 +31,6 @@ function buildFlashInRangeMm(mm) {
   return { command: "FLASH", id: "", type: "IN_RANGE", action: mm };
 }
 
-/* ── helpers ── */
-
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -41,8 +42,6 @@ function randDuration() {
 function clamp(val, lo, hi) {
   return Math.max(lo, Math.min(hi, val));
 }
-
-/* ── Flash All Nodes strip (above the grid) ── */
 
 function FlashAllStrip({ nodeConnections, onSend }) {
   const [inRange, setInRange] = useState("");
@@ -103,8 +102,6 @@ function FlashAllStrip({ nodeConnections, onSend }) {
     </Box>
   );
 }
-
-/* ── Per-node test card ── */
 
 function NodeCard({ id, connected, flashParams, onSend, onConnect, onDisconnect }) {
   const [busy, setBusy] = useState(false);

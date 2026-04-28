@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { Box, Button } from "@mui/material";
 import "./Header.css";
 

@@ -1,8 +1,10 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
-/* Overlay sits on top of the entire digital twin; never intercepts
- * clicks since the underlying queue + toilet controls must stay
- * interactive while an animation plays. */
 .assignment-preview-overlay {
   position: absolute;
   inset: 0;
@@ -34,20 +36,12 @@
   opacity: 0.75;
 }
 
-/* The moving user tile: starts at the queue tile and slides along
- * the arrow to land at the fixture's left edge. Keyframe-based so
- * timing is deterministic (3 s by default) and the GPU can animate
- * transform without re-layout. The background / border / labels are
- * owned by the inner `UsageIcon`; this wrapper only handles
- * positioning + animation. */
 .assignment-preview-marker {
   position: absolute;
   top: 0;
   left: 0;
   width: 4.375rem;
   height: 4.375rem;
-  /* Center the tile on the start point rather than offsetting from
-   * its top-left corner. */
   margin-left: -2.1875rem;
   margin-top: -2.1875rem;
   animation: assignment-preview-slide var(--preview-duration, 3000ms) linear

@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { useState } from "react";
 import {
   Box,
@@ -22,11 +27,6 @@ import {
 } from "../../lib/cleanliness";
 import "./Sidebar.css";
 
-/**
- * Merge stalls + urinals into a single labelled list. The label
- * carries the toilet type + id, so future UI that lets the user
- * add / remove / reorder toilets flows through automatically.
- */
 function buildConditionRows(restroomConditions, toiletTypes) {
   const slotIsNonexistent = (id) =>
     String(toiletTypes?.[id - 1] ?? "").toLowerCase() === "nonexistent";
@@ -68,7 +68,6 @@ export default function Sidebar({
 
   return (
     <Box className="sidebar">
-      {/* Simulation Configuration */}
       <SidebarSquare title="Simulation Configuration" hugContent contentOverflow="hidden">
         <SimulationConfiguration
           config={simulationConfig}
@@ -78,7 +77,6 @@ export default function Sidebar({
         />
       </SidebarSquare>
 
-      {/* Restroom Conditions */}
       <SidebarSquare
         title="Restroom Conditions"
         hugContent
@@ -111,8 +109,6 @@ export default function Sidebar({
                     renderValue={(v) => cleanlinessLabel(v)}
                     sx={{ flex: 1, minWidth: 0 }}
                   >
-                    {/* Hidden anchor so MUI doesn't warn about an out-of-list value
-                        when the slot is locked (Non-Existent). */}
                     {isLocked ? (
                       <MenuItem
                         value={NON_EXISTENT_CONDITION}
@@ -172,7 +168,6 @@ export default function Sidebar({
         </Box>
       </SidebarSquare>
 
-      {/* Simulation Logs */}
       <SidebarSquare
         title="Server Logs"
         flex={2}

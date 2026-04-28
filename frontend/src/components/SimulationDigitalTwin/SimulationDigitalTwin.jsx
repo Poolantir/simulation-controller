@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { Fragment, useMemo, useRef } from "react";
 import { Box, Typography } from "@mui/material";
 import AssignmentPreviewOverlay from "../AssignmentPreviewOverlay/AssignmentPreviewOverlay";
@@ -20,7 +25,6 @@ function mergeFixtureState(id, stalls, urinals) {
   };
 }
 
-/** One row per toilet 1…6; kind from Simulation Configuration; usage from either list by id. */
 function buildTwinRows(toiletTypes, stalls, urinals) {
   const types = Array.isArray(toiletTypes) ? toiletTypes : [];
   return Array.from({ length: TWIN_SLOTS }, (_, i) => {
@@ -60,9 +64,6 @@ export default function SimulationDigitalTwin({
   onClearQueue,
 }) {
   const rows = buildTwinRows(toiletTypes, stalls, urinals);
-  // Share-of-total-uses denominator: all completed occupancies across
-  // every fixture (stalls + urinals, regardless of kind). A fixture's
-  // "Percent Used" is its own useCount / totalUses.
   const totalUses = rows.reduce((sum, r) => sum + (r.useCount ?? 0), 0);
   const connections = Array.isArray(nodeConnections) ? nodeConnections : [];
   const twinRef = useRef(null);
@@ -71,9 +72,6 @@ export default function SimulationDigitalTwin({
     activeFixtureUsers && typeof activeFixtureUsers === "object"
       ? activeFixtureUsers
       : {};
-  // Queue items currently being animated away toward a toilet. The
-  // Queue component ghosts these tiles so the moving marker reads as
-  // "this specific user".
   const pendingQueueIds = useMemo(
     () => new Set(safeTransfers.map((t) => t.queueItemId)),
     [safeTransfers]

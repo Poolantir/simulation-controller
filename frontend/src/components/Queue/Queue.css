@@ -80,7 +80,7 @@
 }
 
 .queue-action-btn {
-  width: 2.75rem !important;   /* 44px */
+  width: 2.75rem !important;   
   height: 2.75rem !important;
   border: var(--border-width) dashed var(--color-brown-dark) !important;
   border-radius: var(--radius-lg) !important;

@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import Urinal from "../Urinal/Urinal";
@@ -18,8 +23,6 @@ export default function UrinalContainer({
   const prevColorRef = useRef(fillColor);
   const [localFlash, setLocalFlash] = useState(null);
 
-  // Sim Mode: detect occupied → free transition (no activeUser in sim).
-  // useLayoutEffect avoids a single empty frame before flash starts.
   useLayoutEffect(() => {
     const wasOccupied = prevPctRef.current > 0;
     const prevColor = prevColorRef.current;

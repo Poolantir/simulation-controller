@@ -1,10 +1,6 @@
-/**
- * Thin client for the backend Dummy Mode scheduler.
- *
- * The scheduler is *backend authoritative*: the frontend enqueues pee/poo
- * requests, pushes config snapshots, and subscribes to the scheduler's
- * SSE stream for live state. All occupancy timing, behavioral choice,
- * and queue progression happens server-side.
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
  */
 
 import { getApiBase } from "./nodesApi";
@@ -48,7 +44,6 @@ export function setSchedulerMode(mode) {
   return postJson("/api/scheduler/mode", { mode });
 }
 
-/** Play / Pause for Dummy mode (backend sim clock + queue). */
 export function setSimRuntime(runtime) {
   return postJson("/api/scheduler/sim_runtime", { runtime });
 }
@@ -57,12 +52,6 @@ export function enqueueUser(type) {
   return postJson("/api/scheduler/enqueue", { type });
 }
 
-/**
- * Ask the backend for a freshly sampled occupancy duration for a
- * given user type, without enqueuing anything. Used by SIM mode so
- * locally-managed queue items still get backend-authoritative timer
- * labels. Returns `{ok, duration_s}` on success.
- */
 export function sampleUserDuration(type) {
   return postJson("/api/scheduler/sample_duration", { type });
 }
@@ -75,16 +64,10 @@ export function resetScheduler() {
   return postJson("/api/scheduler/reset");
 }
 
-/** Post a client-originated log line to the server log bus (SIM queue actions). */
 export function postServerLogLine(line) {
   return postJson("/api/server-log", { line });
 }
 
-/**
- * Push a config snapshot to the scheduler. Any field omitted is left
- * untouched on the backend. `restroom_conditions` accepts the frontend
- * shape `{stalls:[{id,condition}], urinals:[{id,condition}]}`.
- */
 export function updateSchedulerConfig({
   restroomPreset,
   toiletTypes,
@@ -122,13 +105,6 @@ const SCHEDULER_EVENT_NAMES = [
   "server_log",
 ];
 
-/**
- * Subscribe to scheduler SSE events. Returns a close() function.
- *
- * `onEvent(eventName, payload)` is invoked for each event, plus a
- * synthetic `error` event if the underlying EventSource fails.
- * Reconnects after 2s after a stream error (matches nodesApi behavior).
- */
 export function openSchedulerStream(onEvent) {
   let es = null;
   let closed = false;
@@ -143,7 +119,6 @@ export function openSchedulerStream(onEvent) {
           const data = JSON.parse(ev.data);
           onEvent?.(name, data);
         } catch {
-          /* ignore malformed frames */
         }
       });
     }
@@ -152,7 +127,6 @@ export function openSchedulerStream(onEvent) {
       try {
         es.close();
       } catch {
-        /* noop */
       }
       es = null;
       retryTimer = setTimeout(connect, 2000);
@@ -168,21 +142,11 @@ export function openSchedulerStream(onEvent) {
       try {
         es.close();
       } catch {
-        /* noop */
       }
     }
   };
 }
 
-/**
- * Translate a backend scheduler snapshot into the shape the frontend
- * App/DigitalTwin already consumes. Returns `null` on a clearly-invalid
- * snapshot so callers can fall back to their local state.
- */
-// Backend serializes unset numeric fields as JSON `null`; `Number(null)` is
-// 0 (finite), which would make paused-state checks think an absolute
-// deadline is present. Coerce null/undefined to NaN so `Number.isFinite`
-// correctly reports "no value" for those fields.
 function numOrNaN(v) {
   return v == null ? NaN : Number(v);
 }
@@ -196,9 +160,6 @@ export function schedulerSnapshotToFrontendState(snap) {
   const pendingTransfers = [];
   const activeFixtureUsers = {};
   const nowServer = numOrNaN(snap.now);
-  // Server -> client clock skew. The server emits `busy_until` in
-  // its own wall-clock; convert to the client's `Date.now()` frame so
-  // the countdown component can just do `deadline - Date.now()`.
   const skewMs =
     Number.isFinite(nowServer) ? Date.now() - nowServer * 1000 : 0;
   for (const f of fixtures) {
@@ -215,8 +176,6 @@ export function schedulerSnapshotToFrontendState(snap) {
     } else if (kind === "urinal") {
       urinals.push({ id, usagePct, outOfOrder, useCount });
     } else {
-      // Non-existent fixtures still need an entry so DigitalTwin's
-      // id-indexed lookup keeps working; mark them zeroed.
       if (id <= 3) stalls.push({ id, usagePct: 0, outOfOrder: false, useCount: 0 });
       else urinals.push({ id, usagePct: 0, outOfOrder: false, useCount: 0 });
     }
@@ -230,7 +189,6 @@ export function schedulerSnapshotToFrontendState(snap) {
       if (Number.isFinite(busyUntilServer)) {
         busyUntilMs = busyUntilServer * 1000 + skewMs;
       } else if (Number.isFinite(occR) && occR >= 0) {
-        // Paused: show remaining s as a static label (no wall deadline).
         busyUntilMs = null;
       }
       activeFixtureUsers[id] = {
@@ -252,9 +210,6 @@ export function schedulerSnapshotToFrontendState(snap) {
       const prPrev = numOrNaN(f?.preview_remaining_s);
       const reservedDurationS = numOrNaN(f?.reserved_duration_s);
       const pss = numOrNaN(f?.preview_started_sim_s);
-      // Convert "reservation ends at server-now offset" into the
-      // remaining animation budget on the client. Fall back to 3s
-      // so a slightly stale snapshot still produces a visible arrow.
       const remainingMs =
         Number.isFinite(reservedUntil) && Number.isFinite(nowServer)
           ? Math.max(0, (reservedUntil - nowServer) * 1000)

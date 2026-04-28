@@ -1,14 +1,17 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+ 
 @import "../../styles.css";
 
 .test-connections-panel {
-  /* compact row: input stretches to this height to match Set button */
   --testbench-inline-row-h: 1.875rem;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
   min-height: 0;
-  /* left margin 0: gutter = sidebar padding-right only (= --space-5, same as gap between sidebar cards) */
   margin: var(--space-5) var(--space-5) var(--space-5) 0;
   padding: var(--space-5);
   gap: var(--space-4);
@@ -39,7 +42,6 @@
   }
 }
 
-/* ── Flash All Nodes strip (single row: title + two label/input/set groups) ── */
 
 .flash-all-strip {
   display: flex;
@@ -122,8 +124,6 @@
   min-height: 0 !important;
   box-sizing: border-box;
 }
-
-/* ── Per-node card ── */
 
 .node-test-card {
   border: var(--border-default);

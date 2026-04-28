@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { useId, useMemo } from "react";
 import { Box, Typography } from "@mui/material";
 import Stall from "../Stall/Stall";
@@ -9,25 +14,6 @@ import {
 } from "../../lib/behavioralModel";
 import AnticipatedUsageSquare from "../AnticipatedUsageSquare/AnticipatedUsageSquare";
 import "./BehavioralModel.css";
-
-/**
- * BehavioralModel
- * Renders the two-level probability tree visual for toilet choice:
- *   User → [stall group · urinal group] → individual toilets.
- *
- * The artwork (user icon, Stall, Urinal) is absolutely positioned as HTML
- * over a viewBox-scaled SVG that draws the tree lines, dots, arrows, and
- * edge labels.
- *
- * Props:
- *  - title, subtitle       (optional headings above the diagram)
- *  - config                simulation config (toilet types, shy %, middle %)
- *  - restroomConditions    live per-toilet condition state (optional)
- *  - userType              "pee" | "poo"   – drives user icon + level-1 split
- *  - allClean              force T.C = 1 for every toilet (Case 1 / Case 2)
- *  - showToiletClassification   include "· {T.C}" in leaf edge labels
- *  - size                  "small" | "large"
- */
 
 const VB_W = 1000;
 const VB_H = 900;
@@ -172,7 +158,6 @@ export default function BehavioralModel({
                 strokeLinejoin="round"
               />
             </marker>
-            {/* Same geometry as active marker; branch <g opacity> tints dim paths — no extra path opacity */}
             <marker
               id={markerDimId}
               markerWidth="12"
@@ -194,7 +179,6 @@ export default function BehavioralModel({
             </marker>
           </defs>
 
-          {/* user rectangle (highlighted for this userType) */}
           <rect
             x={POS.userRect.x}
             y={POS.userRect.y}
@@ -211,7 +195,6 @@ export default function BehavioralModel({
             strokeWidth="4"
           />
 
-          {/* user → split stem */}
           <line
             x1={POS.userCenter.x + POS.userRect.w / 2}
             y1={POS.userCenter.y}
@@ -222,7 +205,6 @@ export default function BehavioralModel({
             strokeLinecap="round"
           />
 
-          {/* Level 1 branches */}
           {level1Pairs.map((p, i) => {
             const opacity = p.dim ? 0.45 : 1;
             const d = `M ${p.from.x} ${p.from.y} C ${p.from.x + 80} ${p.from.y}, ${p.to.x - 80} ${p.to.y}, ${p.to.x - 10} ${p.to.y}`;
@@ -249,7 +231,6 @@ export default function BehavioralModel({
             );
           })}
 
-          {/* Level 2 leaf branches */}
           {leafSpec.map((L, i) => {
             const opacity = L.dim ? 0.45 : 1;
             const c1x = L.from.x + 80;
@@ -258,9 +239,6 @@ export default function BehavioralModel({
             const c2y = L.leafY;
             const d = `M ${L.from.x} ${L.from.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${POS.leafDotX - 10} ${L.leafY}`;
             const labelX = POS.level2LabelX;
-            // Push label outward (away from the curve) rather than sitting on it.
-            // Upward branches → above (−42); downward → below (+42);
-            // straight (centre) → just below the line (+22) so it reads naturally.
             const dy = L.leafY - L.from.y;
             const labelY =
               (L.from.y + L.leafY) / 2 +
@@ -288,7 +266,6 @@ export default function BehavioralModel({
             );
           })}
 
-          {/* horizontal separator lines between leaves (from PNG) */}
           {[0, 1, 2, 3, 4].map((k) => {
             const y = (POS.leafYs[k] + POS.leafYs[k + 1]) / 2;
             return (
@@ -305,7 +282,6 @@ export default function BehavioralModel({
           })}
         </svg>
 
-        {/* HTML overlay: user icon + leaves (Stall/Urinal + Total %) */}
         <Box className="bm-overlay">
           <Box
             className="bm-user"

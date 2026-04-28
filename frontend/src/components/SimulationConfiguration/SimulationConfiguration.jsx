@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import {
   Box,
   Typography,
@@ -26,7 +31,6 @@ export default function SimulationConfiguration({
 
   return (
     <Box className="sim-config">
-      {/* Restroom preset selector */}
       <Box className="sim-config-preset">
         <Typography className="sim-config-param-label">
           Restroom
@@ -50,7 +54,6 @@ export default function SimulationConfiguration({
         </Select>
       </Box>
 
-      {/* Percentage parameters — one row, two columns */}
       <Box className="sim-config-params">
         <Box className="sim-config-param-col">
           <Typography className="sim-config-param-label">
@@ -93,7 +96,6 @@ export default function SimulationConfiguration({
         </Box>
       </Box>
 
-      {/* Control buttons pinned to bottom */}
       <SimulationControlButtons
         onChangeStatus={onChangeStatus}
         simulationStatus={simulationStatus}

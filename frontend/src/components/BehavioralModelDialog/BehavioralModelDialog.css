@@ -1,6 +1,10 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
-/* Full-screen dialog: let the Paper fill the viewport. */
 .bm-dialog-paper {
   border-radius: 0 !important;
   border: none;
@@ -29,9 +33,6 @@
   color: var(--color-text) !important;
 }
 
-/* DialogContent is the scrollable body between title and actions.
- * Force it into a column-flex layout so the summary + cases-row can
- * share the full content height at a fixed 25 / 75 ratio. */
 .bm-dialog-content {
   display: flex;
   flex-direction: column;
@@ -40,7 +41,6 @@
   overflow: hidden !important;
 }
 
-/* ---- Controls bar: Reset | Next User | toilet occupancy dropdowns ---- */
 .bm-dialog-controls {
   display: flex;
   flex-direction: row;
@@ -119,8 +119,6 @@
   border-radius: var(--radius-sm) !important;
 }
 
-/* ---- Two decision trees: Pee | Poo (50% width each) ----
- * Absorbs vertical space below the summary. */
 .bm-dialog-cases-row {
   display: flex;
   flex-direction: row;
@@ -142,10 +140,6 @@
   min-height: 0;
 }
 
-/* Let each BehavioralModel fill its cell vertically. The SVG uses
- * preserveAspectRatio="none" and the HTML overlay positions by
- * percentage, so relaxing the canvas aspect ratio here lets the
- * diagram grow to use the available vertical real-estate. */
 .bm-dialog-case-cell .bm {
   flex: 1 1 auto;
   min-height: 0;
@@ -158,7 +152,6 @@
   height: 100%;
 }
 
-/* One-line tree title + wide cells (2-up): scale up vs default bm--large. */
 .bm-dialog-case-cell .bm--large .bm-user-icon .usage-icon-person {
   font-size: 4.25rem !important;
 }
@@ -195,7 +188,6 @@
   font-size: 26px;
 }
 
-/* Wrap controls on narrow viewports. */
 @media (max-width: 1100px) {
   .bm-dialog-controls {
     flex-wrap: wrap;

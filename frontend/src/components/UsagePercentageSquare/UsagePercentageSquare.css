@@ -1,7 +1,11 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
 .usage-square {
-  /* Default 145px; parents can override via --usage-square-size. */
   width: var(--usage-square-size, 9.0625rem);
   height: var(--usage-square-size, 9.0625rem);
   background-color: var(--color-gray-100);

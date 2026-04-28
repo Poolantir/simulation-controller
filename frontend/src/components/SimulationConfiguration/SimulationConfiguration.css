@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+ 
 @import "../../styles.css";
 
 .sim-config {
@@ -7,7 +12,6 @@
   gap: var(--space-4);
 }
 
-/* -- Restroom preset selector (single row) -- */
 .sim-config-preset {
   display: flex;
   flex-direction: column;
@@ -30,7 +34,6 @@
   line-height: 1.25 !important;
 }
 
-/* -- Percentage parameter fields: inline row, two equal columns -- */
 .sim-config-params {
   display: flex;
   flex-direction: row;

@@ -1,14 +1,6 @@
-/**
- * Restroom presets — facility-backed layouts for the 6-slot toilet column.
- *
- * Each preset returns a fixed-length (6) array of slot tokens:
- *   - "stall"       → render stall fixture, participate in stall probabilities
- *   - "urinal"      → render urinal fixture, participate in urinal probabilities
- *   - "nonexistent" → slot is locked; rendered as a "Non-Existent" rectangle,
- *                     excluded from scheduler math, condition forced to "Non-Existent".
- *
- * Slot index i ↔ fixture id (i + 1). This matches the existing stall ids 1..3
- * and urinal ids 4..6 in mock state.
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
  */
 
 export const RESTROOM_PRESETS = {
@@ -38,7 +30,6 @@ export function restroomPresetOptions() {
   }));
 }
 
-/** Global-slot indices (0-based) that are locked to "nonexistent" for this preset. */
 export function nonexistentSlotIndices(presetId) {
   return toiletTypesForPreset(presetId)
     .map((t, i) => (t === "nonexistent" ? i : -1))

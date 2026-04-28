@@ -1,25 +1,12 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Box } from "@mui/material";
 import UsageIcon from "../UsageIcon/UsageIcon";
 import "./AssignmentPreviewOverlay.css";
-
-/**
- * AssignmentPreviewOverlay
- *
- * Absolutely-positioned overlay layered on top of the digital twin
- * that draws, for each active "preview" transfer, an arrow from the
- * queued user's tile to the fixture they've been reserved for, plus
- * an animated user icon that slides along that arrow for exactly
- * `transfer.durationMs` milliseconds (3 s by default).
- *
- * Path endpoints are measured with `getBoundingClientRect()` on DOM
- * nodes tagged with:
- *   - `data-queue-item-id="<queueItemId>"` (queue list items)
- *   - `data-fixture-id="<fixtureId>"`      (toilet column slots)
- *
- * We recompute on layout changes via ResizeObserver so the overlay
- * stays aligned as the column zoom level / window size changes.
- */
 
 const ARROW_HEAD_LEN = 12;
 const ARROW_HEAD_WIDTH = 9;
@@ -35,9 +22,6 @@ function computeGeometry(root, transfer) {
   if (!queueEl || !fixtureEl) return null;
   const q = queueEl.getBoundingClientRect();
   const f = fixtureEl.getBoundingClientRect();
-  // Anchor on the right edge of the queue tile (center vertically)
-  // and on the left edge of the fixture row (also center vertically)
-  // so the arrow reads as queue -> toilet.
   const startX = q.right - rootRect.left;
   const startY = q.top + q.height / 2 - rootRect.top;
   const endX = f.left - rootRect.left;
@@ -51,7 +35,6 @@ function arrowHeadPoints(p) {
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
   const ux = dx / len;
   const uy = dy / len;
-  // Perpendicular
   const px = -uy;
   const py = ux;
   const baseX = p.endX - ux * ARROW_HEAD_LEN;
@@ -66,14 +49,7 @@ function arrowHeadPoints(p) {
 export default function AssignmentPreviewOverlay({
   rootRef,
   pendingTransfers,
-  /** When set, animation progress uses simulation time (pause = frozen). */
   simNowMs = null,
-  /**
-   * When true, freeze the CSS slide animation at its current position.
-   * Needed because the keyframe runs on wall-clock time, so just
-   * holding `simNowMs` constant isn't enough to visually pause the
-   * marker — the browser would keep interpolating toward the end.
-   */
   isPaused = false,
 }) {
   const transfers = useMemo(
@@ -84,9 +60,6 @@ export default function AssignmentPreviewOverlay({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const rafRef = useRef(0);
 
-  // Measure positions whenever the set of transfers changes, the
-  // container resizes, or the window reflows. Layout effect keeps the
-  // arrows drawn on the very first paint so there's no 1-frame gap.
   useLayoutEffect(() => {
     const root = rootRef?.current;
     if (!root) return undefined;
@@ -118,9 +91,6 @@ export default function AssignmentPreviewOverlay({
     };
   }, [rootRef, transfers]);
 
-  // Tick periodically while any preview is live so we re-measure if
-  // layout shifts mid-animation (e.g. a fixture finishes and rows
-  // re-stack). Cheap: only runs while there are pending transfers.
   useEffect(() => {
     if (transfers.length === 0) return undefined;
     const root = rootRef?.current;
@@ -211,8 +181,6 @@ export default function AssignmentPreviewOverlay({
               "--preview-end-x": `${p.endX}px`,
               "--preview-end-y": `${p.endY}px`,
               "--preview-duration": `${remaining}ms`,
-              // Negative delay skips past any elapsed slice so reloads
-              // mid-animation don't restart the icon from the queue.
               "--preview-delay": `${-elapsed}ms`,
               animationPlayState: isPaused ? "paused" : "running",
             }}

@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 const T_C_BY_CONDITION = {
   Clean: 1.0,
   Fair: 0.75,
@@ -14,7 +19,6 @@ export function toiletCleanlinessWeight(condition) {
   return T_C_BY_CONDITION[condition] ?? 1;
 }
 
-/** Raw within-group share (before T.C weighting). Mirrors scheduler spec. */
 export function shareForGroup(count, middlePct) {
   const m = Math.min(100, Math.max(0, middlePct)) / 100;
   if (count <= 0) return [];
@@ -27,24 +31,6 @@ export function shareForGroup(count, middlePct) {
   return Array.from({ length: count }, () => 1 / count);
 }
 
-/**
- * Numeric edge label. Every edge now shows its fully-resolved percentage
- * rather than the symbolic formula placeholder. Level-1 shows the group
- * probability; Level-2 shows the conditional-within-group probability,
- * already T.C-weighted and normalized so the group's leaves sum to 1.
- */
-
-/**
- * Build a behavioral-model tree for rendering.
- *
- * @param {object} params
- * @param {{toiletTypes:string[], shyPeerPct:number, middleToiletFirstChoicePct:number}} params.config
- * @param {{stalls:{id:number,condition:string}[], urinals:{id:number,condition:string}[]}} [params.restroomConditions]
- * @param {"pee"|"poo"} [params.userType="pee"]
- * @param {boolean} [params.allClean=false] — force T.C=1 everywhere (ignores live conditions).
- * @param {boolean} [params.showToiletClassification=true] — deprecated no-op. Labels are now
- *        always fully-resolved numeric percentages (T.C baked in); retained for API stability.
- */
 export function computeBehavioralTree({
   config,
   restroomConditions,
@@ -112,8 +98,6 @@ export function computeBehavioralTree({
   const stallSum = stallWeights.reduce((a, b) => a + b, 0);
   const urinalSum = urinalWeights.reduce((a, b) => a + b, 0);
 
-  // Level-2: normalized within group so occupied (T.C=0) toilets
-  // redistribute their share to remaining available toilets.
   const stallNorm = stallWeights.map((w) =>
     stallSum > 0 ? w / stallSum : 0
   );
@@ -157,13 +141,11 @@ export function computeBehavioralTree({
   };
 }
 
-/** Rounds to 2 decimal places — used by UsagePercentageSquare leaf totals. */
 export function roundModelPercent(value) {
   if (value == null || !Number.isFinite(value) || value <= 0) return 0;
   return Math.round(value * 100) / 100;
 }
 
-/** Formats edge-label percentages (1 decimal place, for tree labels). */
 export function formatModelPercent(value) {
   if (value == null || !Number.isFinite(value) || value <= 0) return "0%";
   const rounded = Math.round(value * 10) / 10;

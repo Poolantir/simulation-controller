@@ -1,3 +1,8 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 @import "../../styles.css";
 
 .sidebar {
@@ -5,8 +10,8 @@
   flex-direction: column;
   gap: var(--space-5);
   width: 40%;
-  min-width: 20rem;   /* 320px floor */
-  max-width: 35rem;   /* 560px cap, prevents ultra-wide stretch */
+  min-width: 20rem;   
+  max-width: 35rem;   
   padding: var(--space-5);
   height: 100%;
   box-sizing: border-box;
@@ -84,7 +89,6 @@
   flex-shrink: 0;
 }
 
-/* Tighter card chrome + larger controls; no inner scroll */
 .sidebar-square.sidebar-square--conditions {
   padding: var(--space-6) var(--space-5) var(--space-4);
 }
@@ -110,25 +114,15 @@
   padding-bottom: var(--space-2) !important;
 }
 
-/* Logs card: less top padding so log text sits tight under the title bar */
 .sidebar-square.sidebar-square--logs {
   padding-top: var(--space-3);
 }
 
-/* Logs: one row — scroll fills left, icon column top-right; first line aligns with icons */
 .sim-logs {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: row;
-  /*
-   * `stretch` is required so .sim-logs-scroll matches this row's
-   * full height; otherwise the scroll container sizes to its
-   * intrinsic content height, no clipping occurs, and `overflow:
-   * auto` never activates. Icons still sit at the top because
-   * .sim-logs-actions is a column that lays its children out from
-   * the top (flex-start is its default justify-content).
-   */
   align-items: stretch;
   gap: var(--space-2);
 }
@@ -159,7 +153,6 @@
   background-color: rgba(0, 0, 0, 0.04) !important;
 }
 
-/* Fluid type: grows with viewport / sidebar width */
 .log-line {
   margin: 0 0 var(--space-1) 0 !important;
   font-size: clamp(0.8125rem, 0.55rem + 0.45vw, 1.125rem) !important;
@@ -171,7 +164,6 @@
   margin-bottom: 0 !important;
 }
 
-/* Ultra-wide: give sidebar a bit more room */
 @media (min-width: 1800px) {
   .sidebar {
     max-width: 40rem;

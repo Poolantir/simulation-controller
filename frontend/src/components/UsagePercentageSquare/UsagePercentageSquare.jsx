@@ -1,13 +1,11 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { Box, Typography } from "@mui/material";
 import "./UsagePercentageSquare.css";
 
-/**
- * Per-fixture stats tile displayed next to each stall/urinal. Shows
- * the fixture's share of total completed occupancies (across every
- * toilet, stalls + urinals) and its absolute use count. Both default
- * to 0 before the first completion so the tile stays rendered from
- * session start.
- */
 export default function UsagePercentageSquare({
   useCount = 0,
   totalUses = 0,

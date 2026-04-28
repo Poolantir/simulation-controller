@@ -1,29 +1,13 @@
+/* AI-ASSISTED
+ * Simulation Controller
+ * Matt Krueger, April 2026 
+ */
+
 import { useEffect, useState } from "react";
 import { Box } from "@mui/material";
 import PersonIcon from "@mui/icons-material/Person";
 import "./UsageIcon.css";
 
-/**
- * UsageIcon
- * Shared tile representing a user.
- *
- * Variants:
- *  - "pee"   light yellow background
- *  - "poo"   light brown background
- *  - "empty" transparent (no content, no border) — placeholder slots
- *
- * Rendering modes:
- *  - Label mode (digital twin): when any of `userNumber`, `durationS`,
- *    `busyUntilMs` is provided, the tile shows the user's ordinal as
- *    the primary label and a timer below it. When `busyUntilMs` is
- *    set, the timer counts down in real time until it hits zero; when
- *    only `durationS` is set, the label is static.
- *  - Icon mode (behavioral model / legacy): falls back to the MUI
- *    Person icon so the Behavioral Model dialog's user glyph is
- *    unchanged.
- *
- * Sizing is controlled by the parent via `className`.
- */
 export default function UsageIcon({
   variant = "pee",
   className = "",
@@ -89,11 +73,6 @@ export default function UsageIcon({
   );
 }
 
-/**
- * Internal helper that renders the duration label under the user
- * number. If `busyUntilMs` is provided the label counts down in real
- * time (4 Hz); otherwise it renders the static sampled `durationS`.
- */
 function UsageIconTimer({ durationS, busyUntilMs, clockNowMs = null }) {
   const [now, setNow] = useState(() => Date.now());
 
