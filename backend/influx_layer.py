@@ -1,10 +1,6 @@
-"""Non-blocking InfluxDB v2 write layer for user-cycle points.
-
-Uses a bounded in-process queue and a single background daemon thread
-so scheduler callbacks never block on network I/O.  Transient write
-failures are retried with short exponential backoff; if the queue fills
-up the oldest point is dropped (with a warning).
-"""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 
@@ -39,8 +35,6 @@ class UserCycleRecord:
 
 
 class InfluxWriter:
-    """Best-effort, non-blocking InfluxDB point writer."""
-
     def __init__(
         self,
         *,
@@ -71,8 +65,6 @@ class InfluxWriter:
         )
         self._thread.start()
 
-    # -- public API ----------------------------------------------------
-
     def write_user_cycle(self, record: UserCycleRecord) -> None:
         """Enqueue a point (non-blocking). Drops oldest on overflow."""
         log.info(
@@ -98,8 +90,6 @@ class InfluxWriter:
         self._thread.join(timeout=5.0)
         if self._client:
             self._client.close()
-
-    # -- background worker ---------------------------------------------
 
     def _ensure_client(self) -> Optional[InfluxDBClient]:
         if self._client is not None:

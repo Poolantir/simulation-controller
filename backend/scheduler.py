@@ -1,27 +1,6 @@
-"""
-Dummy Mode scheduler.
-
-Backend-authoritative FIFO scheduler that drives the frontend's digital
-twin while the app is in Dummy Mode. Users are enqueued by the UI, a
-background ticker pulls them off the queue whenever an eligible fixture
-is free, and the occupancy of each fixture is decremented in real time
-as simulated pee/poo durations elapse.
-
-Design notes
-------------
-- All mutable state is protected by a single `threading.RLock`.
-- A dedicated worker thread drives a ~10 Hz tick (`TICK_INTERVAL_S`).
-  The tick (a) releases fixtures whose `busy_until` has passed and
-  (b) tries to assign the queue head to any free eligible fixture.
-- Assignments are sampled from the behavioral-model weights computed
-  from the *current* layout/conditions/free-set, so occupancy changes
-  the odds of each remaining fixture in real time.
-- Event subscribers receive high-level scheduler events
-  (`scheduler_state`, `assignment_started`, `assignment_completed`,
-  `queue_updated`, `mode_changed`, `config_updated`, `reset`).
-- The scheduler is intentionally transport-agnostic: it does not talk
-  to BLE. Dummy Mode simulates usage entirely in-process.
-"""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 
@@ -48,11 +27,7 @@ FIXTURE_COUNT = 6
 TICK_INTERVAL_S = 0.1
 PEE_DURATION_RANGE_S = (2.0, 4.0)
 POO_DURATION_RANGE_S = (10.0, 15.0)
-# How long the UI shows an arrow + user icon traveling from queue to
-# the target fixture before the assignment actually starts. Exposed as
-# a module-level constant so tests can shorten it deterministically.
 PREVIEW_DURATION_S = 3.0
-# Queue wait (simulation time) after which a user leaves without service.
 QUEUE_WAIT_TIMEOUT_S = 10.0
 
 MODE_SIM = "SIM"
@@ -60,9 +35,6 @@ MODE_TEST = "TEST"
 MODE_DUMMY = "DUMMY"
 VALID_MODES = (MODE_SIM, MODE_TEST, MODE_DUMMY)
 
-# Simulation transport for Dummy mode tick. Default idle is `paused`
-# (clock off, queue can be edited). `stopped` is internal-only; the HTTP
-# API accepts play/pause only.
 RUNTIME_STOPPED = "stopped"
 RUNTIME_PAUSED = "paused"
 RUNTIME_RUNNING = "running"
@@ -82,19 +54,10 @@ DEFAULT_TOILET_TYPES: List[str] = [
 @dataclass
 class QueueItem:
     id: int
-    type: str  # "pee" | "poo"
+    type: str
     enqueued_at: float
-    # Simulation-time stamp when the user joined the queue (advances
-    # only while runtime is `running`); used for 10s exit timeout.
     enqueued_at_sim_s: float = 0.0
-    # Pre-sampled occupancy duration. Decided at enqueue time so the UI
-    # can show a stable "time in front of toilet" label on the queued
-    # user that matches the countdown once they commit to a fixture.
     duration_s: float = 0.0
-    # For pee users: True means this user is a "shy pee-er" who will
-    # only use stalls; False means they target urinals. Sampled at
-    # enqueue time from shy_peer_pct so the two-pass non-blocking
-    # scheduler can route users deterministically.
     prefers_stall: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
@@ -110,39 +73,22 @@ class QueueItem:
 
 @dataclass
 class Fixture:
-    id: int  # 1-based global id (1..6)
-    kind: str  # "stall" | "urinal" | "nonexistent"
+    id: int 
+    kind: str
     condition: str = "Clean"
     in_use: bool = False
     busy_until: Optional[float] = None
-    current_user_type: Optional[str] = None  # "pee" | "poo" while in_use
-    # Ordinal (`QueueItem.id`) of the user currently occupying this
-    # fixture. Carried through reservation -> commit so the UI can
-    # render the same "user N" tile for a given user from queue to
-    # fixture and show a live countdown timer.
+    current_user_type: Optional[str] = None  
     current_queue_item_id: Optional[int] = None
     current_duration_s: Optional[float] = None
-    # Reservation ("preview") state: while True the fixture is committed
-    # to a specific queued user but `in_use` hasn't flipped yet. The
-    # scheduler holds this state for PREVIEW_DURATION_S so the UI can
-    # animate an arrow / user icon traveling from the queue to this
-    # fixture before occupancy visually starts.
     reserved: bool = False
     reserved_until: Optional[float] = None
     reserved_user_type: Optional[str] = None
     reserved_queue_item_id: Optional[int] = None
     reserved_duration_s: Optional[float] = None
-    # Sim time at preview start (drives client animation with sim clock).
     preview_started_sim_s: Optional[float] = None
-    # Filled when simulation is paused: wall-clock deadlines converted to
-    # remaining seconds so real time does not elapse while paused.
     occupancy_remaining_s: Optional[float] = None
     preview_remaining_s: Optional[float] = None
-    # Monotonic counter of completed occupancies for this fixture,
-    # incremented in `_release_completed`. Drives the per-fixture "Total
-    # Uses" / share-of-total-uses display in the digital twin. Reset
-    # alongside other in-flight fixture state (mode switch / stop /
-    # reset).
     use_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
@@ -187,8 +133,6 @@ SchedulerEventCb = Callable[[str, Dict[str, Any]], None]
 
 
 class Scheduler:
-    """Thread-safe dummy scheduler."""
-
     def __init__(
         self,
         *,
@@ -208,24 +152,14 @@ class Scheduler:
         self._satisfied_users: int = 0
         self._exited_users: int = 0
         self._total_arrivals: int = 0
-        # Dummy-mode simulation clock (seconds), advances only while
-        # `self._runtime == RUNTIME_RUNNING` and `self._mode == MODE_DUMMY`.
         self._sim_time_s: float = 0.0
-        # Wall clock anchor for the tick loop; used to integrate sim time.
         self._last_tick_wall: Optional[float] = None
-        # Play / Pause / Stop — only affects Dummy mode progression.
         self._runtime: str = RUNTIME_PAUSED
         self._started_at: Optional[float] = None
-
-        # Subscribers are called synchronously; server.py wraps them
-        # with its own thread-safe fan-out (see `/api/scheduler/stream`).
         self._subscribers: List[SchedulerEventCb] = []
         self._sub_lock = threading.Lock()
-
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
-
-    # ---- lifecycle ---------------------------------------------------
 
     def start(self) -> None:
         with self._lock:
@@ -243,8 +177,6 @@ class Scheduler:
         if t is not None:
             t.join(timeout=1.0)
         self._thread = None
-
-    # ---- subscribers -------------------------------------------------
 
     def subscribe(self, cb: SchedulerEventCb) -> Callable[[], None]:
         with self._sub_lock:
@@ -269,12 +201,9 @@ class Scheduler:
                 log.exception("scheduler subscriber raised")
 
     def set_node_connections(self, connections: Sequence[bool]) -> None:
-        """Update which BLE nodes are currently connected (0-indexed)."""
         with self._lock:
             for i in range(FIXTURE_COUNT):
                 self._node_connections[i] = bool(connections[i]) if i < len(connections) else False
-
-    # ---- public API --------------------------------------------------
 
     def snapshot(self) -> Dict[str, Any]:
         with self._lock:
@@ -444,12 +373,6 @@ class Scheduler:
         return {"ok": True, "item": item.to_dict()}
 
     def sample_duration(self, user_type: str) -> Dict[str, Any]:
-        """
-        Sample an occupancy duration without enqueuing anyone. Used by
-        non-Dummy modes (SIM) where the backend isn't driving the queue
-        but the frontend still wants backend-authoritative per-user
-        durations to label queued users with.
-        """
         u = str(user_type).lower()
         if u not in ("pee", "poo"):
             return {"ok": False, "error": f"invalid user type {user_type!r}"}
@@ -486,19 +409,6 @@ class Scheduler:
         return {"ok": True}
 
     def set_sim_runtime(self, runtime: str) -> Dict[str, Any]:
-        """
-        Transport control for the Dummy mode simulation clock and queue
-        processing. The HTTP API accepts only ``running`` and ``paused``;
-        ``stopped`` is for internal use (e.g. :meth:`reset`).
-
-        * ``running`` from ``stopped`` starts a new session: counters and
-          sim time reset to zero and fixtures/queue are cleared.
-        * ``running`` from ``paused`` resumes deadlines.
-        * ``paused`` snapshots remaining occupancy/preview time into
-          per-fixture *remaining* fields and clears absolute deadlines.
-        * ``stopped`` cancels in-flight work and keeps final counters
-          (satisfied / exited / total arrivals) and sim time for display.
-        """
         r = str(runtime or "").lower()
         if r not in ("running", "paused", "stopped"):
             return {"ok": False, "error": f"invalid runtime {runtime!r}"}
@@ -572,14 +482,11 @@ class Scheduler:
                 f.reserved_until = now + f.preview_remaining_s
                 f.preview_remaining_s = None
 
-    # ---- internal helpers --------------------------------------------
-
     def _queue_copy(self) -> List[QueueItem]:
         with self._lock:
             return list(self._queue)
 
     def _init_fixtures_from_types(self, toilet_types: Sequence[str]) -> None:
-        """Rebuild the fixture table preserving cleanliness where possible."""
         prior = self._fixtures
         self._fixtures = {}
         for i, t in enumerate(toilet_types):
@@ -617,11 +524,6 @@ class Scheduler:
         self,
         predicate: Optional[Callable[[Fixture], bool]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Clear preview reservations matching `predicate` (or all when None)
-        and return cancellation event payloads. Caller is responsible for
-        emitting `assignment_preview_cancelled` outside the lock.
-        """
         cancelled: List[Dict[str, Any]] = []
         for fixture in self._fixtures.values():
             if not fixture.reserved:
@@ -645,11 +547,6 @@ class Scheduler:
         return cancelled
 
     def _eligible_free_indices(self) -> List[int]:
-        """
-        0-indexed list of fixtures that are existing, not-in-use, and
-        not currently reserved for a queued user's preview animation.
-        In SIM mode, also requires the corresponding BLE node to be connected.
-        """
         free: List[int] = []
         for i in range(FIXTURE_COUNT):
             f = self._fixtures.get(i + 1)
@@ -674,8 +571,6 @@ class Scheduler:
         return self._rng.uniform(lo, hi)
 
     def _free_indices_by_kind(self, kind: str) -> List[int]:
-        """0-based indices of free, non-reserved fixtures of *kind*.
-        In SIM mode, also requires the corresponding BLE node to be connected."""
         result: List[int] = []
         for i, t in enumerate(self._config.toilet_types):
             if str(t).lower() != kind:
@@ -695,7 +590,6 @@ class Scheduler:
         now: float,
         shares: Dict[int, float],
     ) -> Dict[str, Any]:
-        """Write reservation state onto fixture and return a preview event payload."""
         fixture = self._fixtures[pick_idx + 1]
         duration = head.duration_s or self._sample_duration(head.type)
         fixture.reserved = True
@@ -717,23 +611,6 @@ class Scheduler:
         }
 
     def _try_assign(self) -> None:
-        """
-        Non-blocking two-pass assignment.
-
-        **Urinal pass** — iterates the queue for non-shy pee users and
-        assigns them to free urinals via sequential cleanliness
-        evaluation.  If a pee user rejects every urinal (bad
-        cleanliness), they *wait* (stay queued) and the urinal pass
-        stops for this tick.
-
-        **Stall pass** — iterates the queue in FIFO order for poo users
-        and shy-pee users.  If a user rejects all available stalls they
-        *exit* immediately.  The next user can still try the same
-        stalls (a different RNG roll may accept).
-
-        This replaces the old head-blocks-queue policy so pee users can
-        reach urinals while poo users wait for stalls.
-        """
         if self._mode not in (MODE_DUMMY, MODE_SIM) or self._runtime != RUNTIME_RUNNING:
             return
 
@@ -778,16 +655,15 @@ class Scheduler:
                     reserved_ids.add(head.id)
                     free_urinals.remove(pick_idx)
                 else:
-                    break  # pee user rejects → wait; stop urinal pass
+                    break 
 
-            # ---- stall pass (poo users + shy pee users, FIFO) ----
             users_to_remove: List[QueueItem] = []
             for head in list(self._queue):
                 if head.id in reserved_ids:
                     continue
                 if head.type == "pee" and not head.prefers_stall:
                     if free_urinals:
-                        continue  # urinals still available, skip stall pass
+                        continue 
                 if not free_stalls:
                     break
 
@@ -799,7 +675,7 @@ class Scheduler:
                     group_kind="stall",
                 )
                 if not shares:
-                    break  # no viable stalls (all OoO etc.)
+                    break  
 
                 pick_idx = pick_sequential(shares, conds, self._rng)
                 if pick_idx is not None:
@@ -831,29 +707,6 @@ class Scheduler:
             self._emit_state()
 
     def _commit_reservations(self) -> None:
-        """
-        Promote any reservation whose preview window has elapsed into
-        a real assignment: flip ``in_use``, start the occupancy countdown
-        from *now*, pop the queue item, and emit ``assignment_started``
-        (plus ``queue_updated``).
-
-        **ACK-gated start (SIM mode)** — the BLE write to the ESP32
-        acts as an acknowledgement gate.  The fixture transitions to
-        ``in_use`` and exposes ``busy_until`` (for the frontend
-        countdown) *only* after ``_send_to_node`` returns successfully.
-        If the write fails the reservation is cancelled and the user
-        stays in the queue.  Actual completion is still driven by the
-        ESP32's ``SIM COMPLETE`` notification (see ``notify_complete``);
-        ``_release_completed`` skips SIM-mode fixtures.
-
-        **DUMMY mode** — ``busy_until`` drives both the frontend
-        countdown and the server-side release in ``_release_completed``.
-
-        Reservations commit in chronological order (earliest
-        ``reserved_until`` first) so ``assignment_started`` events
-        preserve FIFO queueing even when multiple fixtures elapse in
-        the same tick.
-        """
         dummy_events: List[Dict[str, Any]] = []
         sim_pending: List[Dict[str, Any]] = []
         queue_changed = False
@@ -876,9 +729,6 @@ class Scheduler:
                 if duration is None:
                     duration = self._sample_duration(user_type)
                 if is_sim:
-                    # Collect for ACK-gated commit; reservation stays
-                    # on the fixture so the UI keeps showing the arrow
-                    # during the (brief) BLE round-trip.
                     sim_pending.append({
                         "fixture": fixture,
                         "user_type": user_type,
@@ -914,7 +764,6 @@ class Scheduler:
                         }
                     )
 
-        # SIM mode: send BLE, commit only on ACK
         sim_events: List[Dict[str, Any]] = []
         sim_cancelled: List[Dict[str, Any]] = []
         for item in sim_pending:
@@ -944,8 +793,6 @@ class Scheduler:
                 ack_ok = True
 
             with self._lock:
-                # Reservation may have been invalidated during the BLE
-                # round-trip (reset / mode switch / pause-cancel).
                 if (
                     not fixture.reserved
                     or fixture.reserved_queue_item_id != qid
@@ -1066,8 +913,6 @@ class Scheduler:
             self._emit_state()
 
     def _expire_queue_timeouts(self) -> None:
-        """Remove queued users who waited longer than QUEUE_WAIT_TIMEOUT_S
-        sim seconds (excluding users currently in preview)."""
         removed: List[Dict[str, Any]] = []
         with self._lock:
             if self._mode not in (MODE_DUMMY, MODE_SIM) or self._runtime != RUNTIME_RUNNING:
@@ -1104,12 +949,6 @@ class Scheduler:
             self._emit_state()
 
     def notify_complete(self, node_id: int, user_id: Optional[str] = None, success: bool = True) -> Dict[str, Any]:
-        """Handle an ESP32 ``SIM COMPLETE`` notification in SIM mode.
-
-        Releases the fixture corresponding to *node_id*, increments
-        satisfied/exited counters, and triggers assignment of the next
-        queued user.
-        """
         released: Optional[Dict[str, Any]] = None
         with self._lock:
             if self._mode != MODE_SIM:
@@ -1151,7 +990,6 @@ class Scheduler:
         return {"ok": True}
 
     def _publish_pause_summary(self) -> None:
-        """Emit a PAUSE banner followed by stats and per-fixture breakdown."""
         with self._lock:
             sim_s = self._sim_time_s
             satisfied = self._satisfied_users
@@ -1219,12 +1057,6 @@ def restroom_from_preset(preset_id: str) -> str:
 
 
 def _normalise_toilet_types(types: Iterable[str]) -> List[str]:
-    """
-    Coerce an arbitrary iterable into a 6-element list of
-    stall/urinal/nonexistent tokens. Pads / trims as needed and replaces
-    unknown tokens with `"nonexistent"` so we never end up with invalid
-    fixture state.
-    """
     out: List[str] = []
     for t in types:
         s = str(t).lower()

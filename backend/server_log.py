@@ -1,10 +1,6 @@
-"""
-Centralized server log bus.
-
-All spec-formatted log lines (LOGGING.md) flow through publish_line().
-Each line is mirrored to Python logging and fanned out to SSE subscribers.
-A small ring buffer allows replaying recent history on new SSE connects.
-"""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 

@@ -1,9 +1,6 @@
-"""
-Poolantir Flask API.
-
-Runs on the host (not Docker) so the BLE manager can reach the Mac's
-Bluetooth radio via bleak/CoreBluetooth.
-"""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 
@@ -47,8 +44,6 @@ ble.start()
 
 scheduler = Scheduler(send_to_node=ble.send)
 scheduler.start()
-
-# ---- InfluxDB telemetry (best-effort, non-blocking) -----------------
 
 _run_id = str(uuid.uuid4())
 _influx = InfluxWriter()
@@ -107,13 +102,6 @@ ble.subscribe_inbound(_handle_sim_complete)
 
 
 def _normalize_get_response(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Coerce GET / SERVO_RAMP|IN_RANGE RX so `action` is always a number for clients.
-
-    ESP32 may send (COMMANDS.md):
-      {"command":"GET","id":"","type":"SERVO_RAMP","action":{"SERVO_RAMP": 2000}}
-      {"command":"GET","id":"","type":"IN_RANGE","action":{"IN_RANGE": 60}}
-    or a bare numeric `action` (legacy).
-    """
     if str(payload.get("command", "")).upper() != "GET":
         return payload
     typ = str(payload.get("type", "")).upper()
@@ -153,14 +141,6 @@ def nodes_status() -> Any:
 
 @app.route("/api/nodes/stream")
 def nodes_stream() -> Response:
-    """SSE: push status snapshots + node->server notifications.
-
-    Emits two event types:
-      - `status`: full connection snapshot whenever it changes.
-      - `inbound`: `{node_id, payload, raw}` for each BLE notification.
-        GET (SERVO_RAMP / IN_RANGE) responses are normalized so `action` is numeric.
-    """
-
     client_q: "queue.Queue[tuple[str, Any]]" = queue.Queue(maxsize=128)
 
     def on_status(snap: Dict[int, Dict[str, Any]]) -> None:
@@ -242,11 +222,6 @@ def nodes_disconnect(node_id: int) -> Any:
     return jsonify(result), status
 
 
-# ---------------------------------------------------------------------
-# Dummy Mode scheduler API
-# ---------------------------------------------------------------------
-
-
 @app.route("/api/scheduler/state")
 def scheduler_state() -> Any:
     return jsonify(ok=True, state=scheduler.snapshot())
@@ -321,12 +296,6 @@ def scheduler_enqueue() -> Any:
 
 @app.route("/api/scheduler/sample_duration", methods=["POST"])
 def scheduler_sample_duration() -> Any:
-    """Sample a pee/poo duration without enqueuing anyone.
-
-    Used by non-Dummy modes (SIM) so queued users can be labeled with
-    backend-authoritative per-user durations that match the Dummy
-    scheduler's sampling distribution.
-    """
     payload = request.get_json(silent=True) or {}
     user_type = str(payload.get("type", "")).lower()
     result = scheduler.sample_duration(user_type)
@@ -360,20 +329,6 @@ def server_log_post() -> Any:
 
 @app.route("/api/scheduler/stream")
 def scheduler_stream() -> Response:
-    """SSE stream of scheduler events + server_log lines.
-
-    Emits `scheduler_state` as a full snapshot on connect, followed by
-    per-event frames as state changes:
-      - `scheduler_state`  — full snapshot (on major changes)
-      - `queue_updated`    — after enqueue / clear / assignment
-      - `assignment_started` — a queued user was placed on a fixture
-      - `assignment_completed` — a fixture finished its busy window
-      - `mode_changed`     — SIM/TEST/DUMMY switch
-      - `config_updated`   — preset/percentages/cleanliness changed
-      - `reset`            — full reset
-      - `server_log`       — spec-formatted log line (LOGGING.md)
-    """
-
     client_q: "queue.Queue[tuple[str, Any]]" = queue.Queue(maxsize=256)
 
     def on_event(event: str, data: Dict[str, Any]) -> None:
@@ -427,5 +382,4 @@ def _sse(event: str, data: Any) -> str:
 
 if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "5001"))
-    # threaded=True lets SSE streams coexist with regular requests
     app.run(host="0.0.0.0", port=port, threaded=True, debug=False, use_reloader=False)

@@ -1,13 +1,6 @@
-"""
-BLE connection manager for the 6 Poolantir nodes.
-
-Runs a dedicated asyncio event loop in a background thread. For each of the
-six configured nodes we periodically scan for the advertised
-`NODE_N_SERVICE` UUID and, once seen, maintain a `BleakClient` connection.
-Writes to the matching `NODE_N_CHARACTERISTIC` are scheduled onto the BLE
-loop via `run_coroutine_threadsafe` so Flask request handlers never touch
-the event loop directly.
-"""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 
@@ -45,9 +38,6 @@ class _NodeState:
         self.client: Optional[BleakClient] = None
         self.address: Optional[str] = None
         self.connected: bool = False
-        # If False, the supervisor leaves this node alone. Flipped by the
-        # user via the Test Bench Connect/Disconnect buttons. Defaults to
-        # True so the backend still auto-connects on startup.
         self.desired: bool = True
 
 
@@ -67,16 +57,12 @@ class BleManager:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
         self._subscribers: list[Callable[[Dict[int, Dict[str, Any]]], None]] = []
-        # Inbound-message subscribers get (node_id, payload_dict, raw_text).
-        # `payload_dict` is None if the notification was not valid JSON.
         self._inbound_subscribers: list[
             Callable[[int, Optional[Dict[str, Any]], str], None]
         ] = []
         self._sub_lock = threading.Lock()
         self._state_lock = threading.Lock()
         self._started = threading.Event()
-
-    # ---- lifecycle ----------------------------------------------------
 
     def start(self) -> None:
         if self._thread is not None:
@@ -100,8 +86,6 @@ class BleManager:
             loop.close()
 
     async def _supervisor(self) -> None:
-        """Forever: kick a reconnect attempt for every currently-disconnected node
-        whose desired state is connected."""
         while True:
             tasks = [
                 asyncio.create_task(self._ensure_connected(node))
@@ -111,8 +95,6 @@ class BleManager:
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
             await asyncio.sleep(RECONNECT_INTERVAL_S)
-
-    # ---- per-node connect --------------------------------------------
 
     async def _ensure_connected(self, node: _NodeState) -> None:
         if node.connected or not node.desired:
@@ -142,8 +124,6 @@ class BleManager:
                 node.connected = True
             log.info("Node %d: connected @ %s", node.id, node.address)
 
-            # Subscribe to notifications on the same characteristic we write
-            # to. ESP32 -> server traffic (IN-USE, COMPLETE, ECHO) arrives here.
             try:
                 await client.start_notify(
                     node.char_uuid,
@@ -187,8 +167,6 @@ class BleManager:
         log.info("Node %d: disconnected", node_id)
         self._publish()
 
-    # ---- public API ---------------------------------------------------
-
     def snapshot(self) -> Dict[int, Dict[str, Any]]:
         with self._state_lock:
             return {
@@ -217,10 +195,6 @@ class BleManager:
         self,
         callback: Callable[[int, Optional[Dict[str, Any]], str], None],
     ) -> Callable[[], None]:
-        """Register for node->server notifications.
-
-        Callback receives (node_id, parsed_payload_or_None, raw_text).
-        """
         with self._sub_lock:
             self._inbound_subscribers.append(callback)
 
@@ -244,9 +218,6 @@ class BleManager:
                 log.exception("subscriber callback raised")
 
     def request_connect(self, node_id: int, timeout: float = 15.0) -> Dict[str, Any]:
-        """User asked to connect node N. Flips desired=True and attempts a
-        connect immediately, rather than waiting for the next supervisor tick.
-        """
         node = self._nodes.get(node_id)
         if node is None:
             return {"ok": False, "error": f"unknown node {node_id}"}
@@ -267,8 +238,6 @@ class BleManager:
         return {"ok": True, "connected": node.connected}
 
     def request_disconnect(self, node_id: int, timeout: float = 10.0) -> Dict[str, Any]:
-        """User asked to disconnect node N. Flips desired=False so the
-        supervisor stops reconnecting, and tears down the existing link."""
         node = self._nodes.get(node_id)
         if node is None:
             return {"ok": False, "error": f"unknown node {node_id}"}
@@ -317,8 +286,6 @@ class BleManager:
         if not node.connected or client is None or not client.is_connected:
             return {"ok": False, "error": "node not connected"}
         try:
-            # ESP32 characteristic exposes PROPERTY_WRITE (request/ack path),
-            # so use response=True for reliable delivery from macOS CoreBluetooth.
             data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
             await client.write_gatt_char(node.char_uuid, data, response=True)
             return {"ok": True}

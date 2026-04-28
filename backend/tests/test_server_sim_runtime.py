@@ -1,4 +1,6 @@
-"""HTTP contract for `/api/scheduler/sim_runtime` (play/pause only)."""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 
@@ -41,9 +43,6 @@ class SimRuntimeApiTests(unittest.TestCase):
                 self.assertTrue(data.get("ok"))
 
     def test_sim_runtime_rejected_outside_dummy_mode(self):
-        """Play/Pause only applies in DUMMY. Frontend switches away
-        from DUMMY -> any stray runtime POST must 400, not silently
-        flip backend runtime."""
         r0 = self.client.post("/api/scheduler/mode", json={"mode": "SIM"})
         self.assertEqual(r0.status_code, 200)
         res = self.client.post(

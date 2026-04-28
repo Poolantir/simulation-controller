@@ -1,13 +1,6 @@
-"""
-Unit tests for the Dummy Mode behavioral model.
-
-Focused on the policy-critical behaviours called out in the plan:
-- Poo users must never be assigned to urinals.
-- Pee users use `shy_peer_pct` to split between groups.
-- The middle-first rule keeps working when a sibling is in-use.
-- Non-existent and out-of-order fixtures are excluded.
-- Two-slot layouts (Seamen Center) treat both slots as outers.
-"""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 

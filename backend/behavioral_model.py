@@ -1,48 +1,6 @@
-"""
-Behavioral model weighting for the Dummy Mode scheduler.
-
-Mirrors the frontend `behavioralModel.js` rules, but specialised for
-*live scheduling*: given the current fixture layout, per-fixture
-cleanliness, and the set of currently-free fixtures, produce a weighted
-distribution over candidate fixtures that a new user could be assigned
-to.
-
-Rules
------
-- Poo-ers only use stalls. If no stall is free (or none exist), the
-  user waits.
-- Pee-ers prefer urinals; the stall-vs-urinal split is driven by
-  `shy_peer_pct`. When only one group has any free-and-existing
-  fixture, the whole probability mass goes to that group.
-- Within a 3-slot group, the "middle toilet as first choice" rule
-  (`middle_pct`) is preserved even when some siblings are occupied:
-    * free middle + >=1 free outer: outers share (1 - m), middle m.
-    * free middle only: middle gets 1.
-    * free outers only: split equally (50/50 in the 3-slot case, which
-      matches the spec: "middle chosen while both outers open -> 50-50
-      between the two outers").
-- Groups with 2 slots (e.g. Seamen Center) have no middle -> share
-  equally. Groups with 1 slot get 1. Group with 0 slots is ignored.
-- Non-existent slots and occupied slots are excluded from the
-  candidate set before weighting.
-- Toilet-cleanliness weight (T.C) is applied multiplicatively to each
-  candidate before normalisation. Fixtures with T.C==0 (Out-of-Order,
-  In-Use, Currently Being Cleaned, Non-Existent) are effectively
-  excluded.
-
-Sequential evaluation (``pick_sequential``)
--------------------------------------------
-The spec describes an "in succession" rule: the user picks a fixture
-from the etiquette distribution, then accepts/rejects based on
-cleanliness (T.C).  On rejection the fixture is removed from the
-candidate set, the etiquette shares re-normalise, and the user tries
-again.  Only when *every* candidate is rejected does the user leave
-(poo) or wait (pee at urinals).
-
-``compute_group_etiquette_shares`` + ``pick_sequential`` implement
-this two-stage model and are used by the scheduler for all Dummy-mode
-assignments.
-"""
+# AI-ASSISTED
+# Simulation Controller
+# Matt Krueger, April 2026 
 
 from __future__ import annotations
 
@@ -75,20 +33,12 @@ def _layout_shares(
     free_indices_in_group: Sequence[int],
     middle_pct: float,
 ) -> Dict[int, float]:
-    """
-    Produce base (pre-T.C) shares for each *free* slot in a group,
-    using the middle-first rule when the original group has 3 slots.
-
-    The shares returned always sum to 1.0 (or 0.0 if no free slot).
-    """
     if not free_indices_in_group:
         return {}
 
     m = max(0.0, min(100.0, float(middle_pct))) / 100.0
     n = len(group_indices)
 
-    # 3-slot layout: preserve middle-first semantics based on *original*
-    # positions so partially-occupied groups still respect the rule.
     if n == 3:
         middle_idx = group_indices[1]
         outer_idxs = [group_indices[0], group_indices[2]]
@@ -101,12 +51,9 @@ def _layout_shares(
             return shares
         if free_middle and not free_outers:
             return {middle_idx: 1.0}
-        # outers only -> split equally (handles "middle is in-use" case,
-        # which per spec is a 50/50 between the two remaining outers).
         per = 1.0 / len(free_outers)
         return {i: per for i in free_outers}
 
-    # 2- or 1-slot layout: no middle rule; split equally.
     per = 1.0 / len(free_indices_in_group)
     return {i: per for i in free_indices_in_group}
 
@@ -120,18 +67,6 @@ def compute_candidate_weights(
     shy_peer_pct: float,
     middle_pct: float,
 ) -> Dict[int, float]:
-    """
-    Return normalised weights (summing to 1.0) over the fixture indices
-    that a user of `user_type` could be assigned to *right now*.
-
-    `free_indices` must already exclude fixtures that are occupied,
-    out-of-order, or non-existent. The function additionally enforces
-    T.C>0 so a "Horrendous-but-not-forbidden" fixture still gets a tiny
-    slice, while zero-T.C conditions drop out.
-
-    Returns an empty dict when no eligible candidate exists (caller
-    should leave the user queued).
-    """
     u = str(user_type).lower()
     if u not in ("pee", "poo"):
         return {}
@@ -141,14 +76,12 @@ def compute_candidate_weights(
 
     free_set = set(free_indices)
 
-    # Restrict each group's free set + drop T.C==0 entries.
     def tc(i: int) -> float:
         return toilet_cleanliness_weight(conditions_by_index.get(i, "Clean"))
 
     free_stalls = [i for i in stall_idx if i in free_set and tc(i) > 0]
     free_urinals = [i for i in urinal_idx if i in free_set and tc(i) > 0]
 
-    # Group-probability split (pee vs poo).
     if u == "poo":
         group_prob_stall = 1.0 if free_stalls else 0.0
         group_prob_urinal = 0.0
@@ -169,8 +102,6 @@ def compute_candidate_weights(
     if group_prob_stall == 0.0 and group_prob_urinal == 0.0:
         return {}
 
-    # Within-group shares (layout-aware) * T.C, then normalised *inside*
-    # each group so the T.C weighting never leaks across groups.
     def _weight_group(
         group_idx: Sequence[int],
         free_in_group: Sequence[int],
@@ -189,10 +120,6 @@ def compute_candidate_weights(
     stall_weights = _weight_group(stall_idx, free_stalls)
     urinal_weights = _weight_group(urinal_idx, free_urinals)
 
-    # If a group has weight 0 (e.g. every remaining stall is Out-of-Order)
-    # push the entire group-probability mass to the other group so we
-    # don't waste a scheduling attempt. Matches frontend fallback where
-    # an empty group yields 0 and the other side absorbs the distribution.
     if u == "pee":
         if not stall_weights and urinal_weights:
             group_prob_stall, group_prob_urinal = 0.0, 1.0
@@ -225,12 +152,6 @@ def compute_group_etiquette_shares(
     middle_pct: float,
     group_kind: str,
 ) -> Dict[int, float]:
-    """
-    Etiquette-only shares for free fixtures of *group_kind* (`"stall"` or
-    `"urinal"`).  Fixtures with T.C==0 are pre-filtered so only viable
-    candidates participate.  Shares sum to 1.0 (or empty dict when no
-    viable candidate exists).
-    """
     group_idx = _group_indices(toilet_types, group_kind)
     free_set = set(free_indices)
     free_in_group = [
@@ -249,15 +170,6 @@ def pick_sequential(
     conditions_by_index: Dict[int, str],
     rng,
 ) -> int | None:
-    """
-    Sequential evaluation matching the spec's "in succession" rule.
-
-    1. Sample a fixture from the etiquette distribution.
-    2. Accept with probability T.C (cleanliness).  If rejected, remove
-       that fixture, re-normalise the remaining shares, and repeat.
-    3. Return the accepted fixture index, or ``None`` if every candidate
-       was rejected (caller decides: exit vs wait).
-    """
     candidates = dict(shares)
     while candidates:
         total = sum(candidates.values())
@@ -284,7 +196,6 @@ def pick_sequential(
 
 
 def pick_weighted(weights: Dict[int, float], rng) -> int | None:
-    """Return a key sampled from `weights`, or None if empty."""
     if not weights:
         return None
     r = rng.random()
@@ -299,7 +210,6 @@ def pick_weighted(weights: Dict[int, float], rng) -> int | None:
 
 
 def empty_conditions_for_types(toilet_types: Sequence[str]) -> Dict[int, str]:
-    """Convenience: build a 'everything Clean, nonexistent locked' map."""
     out: Dict[int, str] = {}
     for i, t in enumerate(toilet_types):
         out[i] = "Non-Existent" if str(t).lower() == "nonexistent" else "Clean"
@@ -310,10 +220,6 @@ def conditions_from_frontend_payload(
     toilet_types: Sequence[str],
     restroom_conditions: Dict | None,
 ) -> Dict[int, str]:
-    """
-    Convert the frontend `{stalls:[{id,condition}], urinals:[{id,condition}]}`
-    shape into a 0-indexed map aligned with `toilet_types`.
-    """
     if not restroom_conditions:
         return empty_conditions_for_types(toilet_types)
     out = empty_conditions_for_types(toilet_types)
@@ -326,7 +232,6 @@ def conditions_from_frontend_payload(
                 continue
             if 0 <= idx < len(toilet_types):
                 cond = e.get("condition", "Clean")
-                # Non-existent fixtures stay locked regardless of payload.
                 if str(toilet_types[idx]).lower() == "nonexistent":
                     out[idx] = "Non-Existent"
                 else:
