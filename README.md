@@ -34,7 +34,7 @@ Using React to create a single page front-end to control the 3D diorama.
 
 ### Python Backend
 
-Using a simple flask server for the priority queue toilet scheduler and connection to the Influx database
+Using a simple flask server for the priority queue toilet scheduler and connection to Firebase
 
 #### Scheduling Algorithm
 

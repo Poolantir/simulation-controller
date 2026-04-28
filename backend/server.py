@@ -8,7 +8,6 @@ import json
 import logging
 import os
 import queue
-import uuid
 from pathlib import Path
 from typing import Any, Dict
 
@@ -27,8 +26,8 @@ from scheduler import (  # noqa: E402
     Scheduler,
     VALID_MODES,
 )
+import firebase_layer  # noqa: E402
 import server_log  # noqa: E402
-from influx_layer import InfluxWriter, UserCycleRecord  # noqa: E402
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -45,30 +44,25 @@ ble.start()
 scheduler = Scheduler(send_to_node=ble.send)
 scheduler.start()
 
-_run_id = str(uuid.uuid4())
-_influx = InfluxWriter()
+def _on_scheduler_firebase(event: str, data: Dict[str, Any]) -> None:
+    """Push sim-mode state transitions to Firebase sensor_events."""
+    if event == "assignment_started":
+        if data.get("mode") == MODE_SIM or scheduler._mode == MODE_SIM:
+            types = scheduler._config.toilet_types
+            nid = firebase_layer.fixture_to_node_id(
+                data["fixture_id"], data["fixture_kind"], types
+            )
+            firebase_layer.send_event(nid, "in_use")
+    elif event == "assignment_completed":
+        if data.get("mode") == MODE_SIM:
+            types = scheduler._config.toilet_types
+            nid = firebase_layer.fixture_to_node_id(
+                data["fixture_id"], data["fixture_kind"], types
+            )
+            firebase_layer.send_event(nid, "vacant")
 
 
-def _on_assignment_completed(event: str, data: Dict[str, Any]) -> None:
-    if event != "assignment_completed":
-        return
-    duration = data.get("duration_s")
-    if duration is None:
-        return
-    _influx.write_user_cycle(
-        UserCycleRecord(
-            restroom=data.get("restroom", "unknown"),
-            node_id=int(data.get("fixture_id", 0)),
-            toilet_type=data.get("fixture_kind", "unknown"),
-            duration_s=float(duration),
-            run_id=_run_id,
-            user_id=str(data.get("queue_item_id", "")),
-            mode=data.get("mode", "UNKNOWN"),
-        )
-    )
-
-
-scheduler.subscribe(_on_assignment_completed)
+scheduler.subscribe(_on_scheduler_firebase)
 
 
 def _sync_node_connections(snap: Dict[int, Dict[str, Any]]) -> None:
@@ -257,6 +251,10 @@ def scheduler_mode() -> Any:
     if result.get("ok"):
         label = "SIMULATION" if mode == MODE_SIM else "TESTING"
         server_log.publish_line(f"=============== SET: {label} ===============")
+        if mode == MODE_SIM:
+            firebase_layer.send_all_nodes("online")
+        elif mode == MODE_TEST:
+            firebase_layer.send_all_nodes("offline")
     status = 200 if result.get("ok") else 400
     return jsonify(result), status
 

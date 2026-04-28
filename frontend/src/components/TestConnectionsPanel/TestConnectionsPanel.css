@@ -22,6 +22,17 @@
   border-radius: var(--radius-lg);
 }
 
+.test-connections-panel__toolbar {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.test-connections-panel__toolbar > .flash-all-strip {
+  flex: 1 1 auto;
+}
+
 .test-connections-panel__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

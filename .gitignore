@@ -53,6 +53,10 @@ coverage/
 tmp/
 temp/
 
+# Service account keys
+*-service-account*.json
+*-credentials*.json
+
 # IDE / OS files
 .DS_Store
 .vscode/

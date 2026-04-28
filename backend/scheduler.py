@@ -1052,7 +1052,7 @@ _PRESET_TO_RESTROOM = {
 
 
 def restroom_from_preset(preset_id: str) -> str:
-    """Map a restroom preset id (e.g. ``maclean_2m``) to its Influx restroom tag."""
+    """Map a restroom preset id (e.g. ``maclean_2m``) to its canonical restroom name."""
     return _PRESET_TO_RESTROOM.get(preset_id, preset_id)
 
 

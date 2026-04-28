@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "firebase": "^11.6.0",
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
     "@mui/icons-material": "^6.4.0",
