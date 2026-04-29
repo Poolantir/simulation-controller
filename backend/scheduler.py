@@ -2,6 +2,17 @@
 # Simulation Controller
 # Matt Krueger, April 2026 
 
+# matt -
+# I am not proud of the use of AI for the scheduling algorithm. Although it was 90% correct,
+# there are a few edge cases (from weird human behavior in the bathroom) that do no
+# get mapped to the "correct" toilet
+#
+# The simulation code was written in ~10hrs of prompting (I probably ripped 20 agent queries with plan steps... using caveman of course to save $$$)
+# I elected to use AI development I had already put ~120hrs into modeling, electronic work, assembly, gear & servo iterations, and troubleshooting faulty 3D prints.
+#
+# If I were rewriting the scheduler, I would firstly not use python. This was a poor architectural decision on my part; using C++ would improve the cleanliness of the code traceability of concurrent threads.
+# C++ would have yeilded a higher developer velocity for me as I have little experience (besides leetcode) writing algos in python.
+
 from __future__ import annotations
 
 import logging
